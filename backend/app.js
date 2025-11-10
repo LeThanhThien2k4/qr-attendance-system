@@ -1,0 +1,49 @@
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+
+import authRoutes from "./routes/auth.route.js";
+import userRoutes from "./routes/user.route.js";
+import courseRoutes from "./routes/course.route.js";
+import classRoutes from "./routes/class.route.js";
+import attendanceRoutes from "./routes/attendance.route.js";
+import aiRoutes from "./routes/ai.route.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
+import passwordResetRoutes from "./routes/passwordReset.route.js";
+import notificationRoutes from "./routes/notification.route.js";
+import lecturerRoutes from "./routes/lecturer.route.js";
+import enrollmentRoutes from "./routes/enrollments.route.js";
+import adminUserRoutes from "./routes/adminUsers.route.js";
+
+dotenv.config();
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Kết nối MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => console.log("✅ MongoDB Connected"))
+  .catch(err => console.error("❌ Mongo Error:", err));
+
+// Định nghĩa API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/courses", courseRoutes);
+app.use("/api/classes", classRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/password", passwordResetRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/lecturer", lecturerRoutes);
+app.use("/api/enrollments", enrollmentRoutes);
+app.use("/api/admin/users", adminUserRoutes);
+
+
+
+// Middleware xử lý lỗi
+app.use(errorHandler);
+
+export default app;
