@@ -33,18 +33,22 @@ export default function DashboardLayout() {
   };
 
   const menusByRole = {
-    ADMIN: [
+    admin: [
       { to: "/admin/dashboard", label: "Tổng quan" },
-      { to: "/admin/users", label: "Quản lý người dùng" },
+      { to: "/admin/students", label: "Quản lý sinh viên" },
+      { to: "/admin/lecturers", label: "Quản lý giảng viên" },
+      { to: "/admin/courses", label: "Quản lý môn học" },
+      { to: "/admin/official-classes", label: "Quản lý lớp học chính quy" },
+      { to: "/admin/classes", label: "Quản lý lớp học phần" },
+      { to: "/admin/attendances", label: "Quản lý điểm danh" },
       { to: "/admin/import", label: "Import Excel" },
     ],
-    LECTURER: [
+    lecturer: [
       { to: "/lecturer/dashboard", label: "Tổng quan" },
-      { to: "/lecturer/classes", label: "Lớp học" },
-      { to: "/lecturer/sessions", label: "Buổi học" },
-      { to: "/lecturer/notifications", label: "Thông báo" },
+      { to: "/lecturer/attendance", label: "Điểm danh" },
+
     ],
-    STUDENT: [
+    student: [
       { to: "/student/dashboard", label: "Tổng quan" },
       { to: "/student/attendance", label: "Điểm danh" },
       { to: "/student/classes", label: "Lớp học" },
@@ -53,9 +57,13 @@ export default function DashboardLayout() {
   };
 
   const menus = menusByRole[user?.role] || [];
-  const displayName = profile?.fullName || user?.fullName || "Người dùng";
+  const displayName = profile?.name || user?.name || "Người dùng";
+
 
   if (loading) return <div className="p-10 text-center">Đang tải...</div>;
+  if (!user || !user.role) return <div className="p-10 text-center">Đang tải dữ liệu người dùng...</div>;
+  console.log("USER ROLE:", user?.role);
+
 
   return (
     <div className="flex h-screen bg-gray-50">

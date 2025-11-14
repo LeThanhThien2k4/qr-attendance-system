@@ -1,48 +1,82 @@
-import { useEffect, useState, createContext, useContext } from "react";
-import {jwtDecode} from "jwt-decode";
-import { clearAll, getToken, setToken } from "../../../lib/storage";
+// src/features/auth/hooks/useAuth.jsx
+import { createContext, useContext, useEffect, useState } from "react";
+import jwt_decode from "jwt-decode";
 
 const AuthContext = createContext(null);
 
+const ROLES = ["admin", "lecturer", "student"];
+const tokenKey = (role) => `token_${role}`;
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [token, setTokenState] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  /* ----------------------------------------------------
+     🔄 RESTORE TOKEN CHUẨN CHO ĐA-TAB - ĐA-ROLE
+  ---------------------------------------------------- */
   useEffect(() => {
-    const saved = getToken();
-    if (saved) {
-      try {
-        const decoded = jwtDecode(saved);
-        const now = Date.now() / 1000;
-        if (decoded.exp && decoded.exp < now) {
-          clearAll();
-        } else {
-          setUser(decoded);
-          setTokenState(saved);
-        }
-      } catch {
-        clearAll();
-      }
+    const currentRole = sessionStorage.getItem("current_role");
+    if (!currentRole) {
+      setLoading(false);
+      return;
     }
+
+    const savedToken = localStorage.getItem(tokenKey(currentRole));
+    if (!savedToken) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const decoded = jwt_decode(savedToken);
+      const now = Date.now() / 1000;
+
+      if (decoded.exp && decoded.exp < now) {
+        localStorage.removeItem(tokenKey(currentRole));
+      } else {
+        setUser(decoded);
+        setToken(savedToken);
+      }
+    } catch {
+      localStorage.removeItem(tokenKey(currentRole));
+    }
+
     setLoading(false);
   }, []);
 
-  const login = (newToken) => {
-    try {
-      const decoded = jwtDecode(newToken);
-      setUser(decoded);
-      setTokenState(newToken);
-      setToken(newToken);
-    } catch {
-      console.error("Invalid token on login");
-    }
+  /* ----------------------------------------------------
+     🔐 LOGIN — MỖI TAB GIỮ ROLE RIÊNG
+  ---------------------------------------------------- */
+  const login = (jwt) => {
+    const decoded = jwt_decode(jwt);
+    const role = decoded.role?.toLowerCase();
+
+    if (!role) throw new Error("Token không có role");
+
+    // Ghi role cho TAB này
+    sessionStorage.setItem("current_role", role);
+
+    // KHÔNG XÓA token role khác
+    localStorage.setItem(tokenKey(role), jwt);
+
+    setUser(decoded);
+    setToken(jwt);
   };
 
+  /* ----------------------------------------------------
+     🚪 LOGOUT — CHỈ XÓA TOKEN ROLE CỦA TAB HIỆN TẠI
+  ---------------------------------------------------- */
   const logout = () => {
-    clearAll();
+    const role = sessionStorage.getItem("current_role");
+
+    if (role) {
+      localStorage.removeItem(tokenKey(role));
+      sessionStorage.removeItem("current_role");
+    }
+
     setUser(null);
-    setTokenState(null);
+    setToken(null);
   };
 
   return (

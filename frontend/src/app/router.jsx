@@ -1,5 +1,5 @@
 import React from "react";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
 
 // AUTH
 import LoginPage from "../features/auth/pages/LoginPage.jsx";
@@ -11,70 +11,69 @@ import DashboardLayout from "../layouts/DashboardLayout.jsx";
 
 // ADMIN
 import AdminDashboardPage from "../features/admin/pages/AdminDashboardPage.jsx";
-import AdminUserListPage from "../features/admin/pages/AdminUserListPage.jsx";
 import AdminUserImportPage from "../features/admin/pages/AdminUserImportPage.jsx";
+import AdminStudentListPage from "../features/admin/pages/AdminStudentListPage.jsx";
+import AdminCourseListPage from "../features/admin/pages/AdminCourseListPage.jsx";
+import AdminAttendanceListPage from "../features/admin/pages/AdminAttendanceListPage.jsx";
+import AdminClassListPage from "../features/admin/pages/AdminClassListPage.jsx";
+import AdminOfficialClassListPage from "../features/admin/pages/AdminOfficialClassListPage.jsx";
+import AdminLecturerListPage from "../features/admin/pages/AdminLecturerListPage.jsx";
 
 // LECTURER
 import LecturerDashboardPage from "../features/dashboard/pages/LecturerDashboardPage.jsx";
+import LecturerAttendancePage from "../features/attendance/lecturer/pages/LecturerAttendancePage.jsx";
 
 // STUDENT
-import StudentDashboardPage from "../features/dashboard/pages/StudentDashboardPage.jsx";
+import StudentDashboardPage from "../features/attendance/student/pages/StudentDashboardPage.jsx";
+import StudentScanPage from "../features/attendance/student/pages/StudentScanPage.jsx";
 
 const router = createBrowserRouter([
+  // Redirect root to login
+  { path: "/", element: <Navigate to="/login" replace /> },
+
+  // Login
+  { path: "/login", element: <LoginPage /> },
+
+  // Protected routes
   {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    path: "/",
-    element: <DashboardLayout />, // Layout chung có Outlet
+    element: <DashboardLayout />,
     children: [
       { path: "change-password", element: <ChangePasswordPage /> },
 
-      // === ADMIN ===
+      // ======================= ADMIN =======================
       {
-        path: "admin/dashboard",
-        element: (
-          <RequireRole allowedRoles={["ADMIN"]}>
-            <AdminDashboardPage />
-          </RequireRole>
-        ),
-      },
-      {
-        path: "admin/users",
-        element: (
-          <RequireRole allowedRoles={["ADMIN"]}>
-            <AdminUserListPage />
-          </RequireRole>
-        ),
-      },
-      {
-        path: "admin/import",
-        element: (
-          <RequireRole allowedRoles={["ADMIN"]}>
-            <AdminUserImportPage />
-          </RequireRole>
-        ),
+        path: "admin",
+        element: <RequireRole allowedRoles={["admin"]} />,
+        children: [
+          { path: "dashboard", element: <AdminDashboardPage /> },
+          { path: "students", element: <AdminStudentListPage /> },
+          { path: "lecturers", element: <AdminLecturerListPage /> },
+          { path: "courses", element: <AdminCourseListPage /> },
+          { path: "attendances", element: <AdminAttendanceListPage /> },
+          { path: "classes", element: <AdminClassListPage /> },
+          { path: "official-classes", element: <AdminOfficialClassListPage /> },
+          { path: "import", element: <AdminUserImportPage /> },
+        ],
       },
 
-      // === LECTURER ===
+      // ======================= LECTURER =======================
       {
-        path: "lecturer/dashboard",
-        element: (
-          <RequireRole allowedRoles={["LECTURER"]}>
-            <LecturerDashboardPage />
-          </RequireRole>
-        ),
+        path: "lecturer",
+        element: <RequireRole allowedRoles={["lecturer"]} />,
+        children: [
+          { path: "dashboard", element: <LecturerDashboardPage /> },
+          { path: "attendance", element: <LecturerAttendancePage /> },
+        ],
       },
 
-      // === STUDENT ===
+      // ======================= STUDENT =======================
       {
-        path: "student/dashboard",
-        element: (
-          <RequireRole allowedRoles={["STUDENT"]}>
-            <StudentDashboardPage />
-          </RequireRole>
-        ),
+        path: "student",
+        element: <RequireRole allowedRoles={["student"]} />,
+        children: [
+          { path: "dashboard", element: <StudentDashboardPage /> },
+          { path: "attendance", element: <StudentScanPage /> },
+        ],
       },
     ],
   },

@@ -1,20 +1,32 @@
+// src/lib/axios.js
 import axios from "axios";
-import { getToken, clearToken } from "./storage";
+
+const getActiveToken = () => {
+  const role = sessionStorage.getItem("current_role");
+  if (!role) return null;
+  return localStorage.getItem(`token_${role}`);
+};
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api",
 });
 
 api.interceptors.request.use((config) => {
-  const token = getToken();
+  const token = getActiveToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 api.interceptors.response.use(
-  (r) => r,
+  (res) => res,
   (err) => {
-    if (err?.response?.status === 401) clearToken();
+    if (err.response?.status === 401) {
+      const role = sessionStorage.getItem("current_role");
+      if (role) {
+        localStorage.removeItem(`token_${role}`);
+        sessionStorage.removeItem("current_role");
+      }
+    }
     return Promise.reject(err);
   }
 );
