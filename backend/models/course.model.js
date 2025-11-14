@@ -1,15 +1,15 @@
+// backend/models/course.model.js
 import mongoose from "mongoose";
 
-const courseSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
-  semester: { type: String },
-  lecturerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
+const courseSchema = new mongoose.Schema(
+  {
+    code: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    credit: { type: Number, default: 3 },
+    lecturer: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // người phụ trách (giảng viên)
+    isActive: { type: Boolean, default: true },
   },
-  createdAt: { type: Date, default: Date.now },
-});
+  { timestamps: true }
+);
 
 export default mongoose.model("Course", courseSchema);

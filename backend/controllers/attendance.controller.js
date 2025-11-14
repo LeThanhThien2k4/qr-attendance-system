@@ -1,5 +1,4 @@
-import AttendanceSession from "../models/attendanceSession.model.js";
-import AttendanceRecord from "../models/attendanceRecord.model.js";
+
 import Class from "../models/class.model.js";
 import { verifyQrToken, createQrToken } from "../services/qrService.js";
 import { calcDistance } from "../services/gpsService.js";

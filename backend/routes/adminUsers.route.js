@@ -1,22 +1,33 @@
 import express from "express";
+import multer from "multer"; // ✅ Cần thiết để định nghĩa upload
 import verifyToken from "../middlewares/auth.js";
-import requireRole from "../middlewares/role.js"; // thêm dòng này
+import requireRole from "../middlewares/role.js";
+
 import {
   createUser,
   getUsers,
   deleteUser,
-  updateUser, // thêm update để dùng trong PUT
+  updateUser,
+  importUsers,
+  exportUsers,
 } from "../controllers/adminUser.controller.js";
 
 const router = express.Router();
 
-// Chỉ ADMIN mới được thao tác user
-router.use(verifyToken, requireRole("ADMIN"));
+// ✅ Cấu hình multer (đặt TRƯỚC khi gọi router.post)
+const upload = multer({ dest: "uploads/" });
+
+// ✅ Chỉ ADMIN mới được thao tác user
+router.use(verifyToken, requireRole("admin"));
 
 // === CRUD người dùng ===
-router.get("/", getUsers);               // Lấy danh sách
-router.post("/", createUser);            // Tạo người dùng
-router.put("/:id", updateUser);          // Cập nhật người dùng
-router.delete("/:id", deleteUser);       // Xóa người dùng
+router.get("/", getUsers);
+router.post("/", createUser);
+router.put("/:id", updateUser);
+router.delete("/:id", deleteUser);
+
+// === Import / Export Excel ===
+router.post("/import", upload.single("file"), importUsers); // POST /admin/users/import?role=student
+router.get("/export", exportUsers); // GET /admin/users/export?role=lecturer
 
 export default router;

@@ -12,9 +12,16 @@ import aiRoutes from "./routes/ai.route.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import passwordResetRoutes from "./routes/passwordReset.route.js";
 import notificationRoutes from "./routes/notification.route.js";
-import lecturerRoutes from "./routes/lecturer.route.js";
 import enrollmentRoutes from "./routes/enrollments.route.js";
 import adminUserRoutes from "./routes/adminUsers.route.js";
+import adminCoursesRoute from "./routes/adminCourses.route.js";
+import adminAttendancesRoute from "./routes/adminAttendances.route.js";
+import adminClassesRoute from "./routes/adminClasses.route.js";
+import adminOfficialClassRoutes from "./routes/adminOfficialClass.route.js";
+import lecturerAttendanceRoutes from "./routes/lecturerAttendances.route.js";
+import studentAttendanceRoutes from "./routes/studentAttendance.route.js";
+
+
 
 dotenv.config();
 const app = express();
@@ -37,10 +44,14 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/password", passwordResetRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/lecturer", lecturerRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/admin/users", adminUserRoutes);
-
+app.use("/api/admin/courses", adminCoursesRoute);
+app.use("/api/admin/attendances", adminAttendancesRoute);
+app.use("/api/admin/classes", adminClassesRoute);
+app.use("/api/admin/official-classes", adminOfficialClassRoutes);
+app.use("/api/lecturer", lecturerAttendanceRoutes);
+app.use("/api/student", studentAttendanceRoutes);
 
 
 // Middleware xử lý lỗi

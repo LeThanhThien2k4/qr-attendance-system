@@ -1,25 +1,55 @@
+// backend/models/class.model.js
 import mongoose from "mongoose";
 
-const classSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  courseId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Course",
-    required: true,
-  },
-  students: [
-    {
+const classSchema = new mongoose.Schema(
+  {
+    code: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+
+    course: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: true,
+    },
+
+    lecturer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
-  ],
-  schedule: {
-    dayOfWeek: { type: String }, // Thứ trong tuần (e.g. "Monday")
-    startTime: { type: String }, // e.g. "08:00"
-    endTime: { type: String },   // e.g. "09:30"
-    room: { type: String },
+
+    students: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    schedule: [
+      {
+        dayOfWeek: String,
+        startTime: String,
+        endTime: String,
+        room: String,
+      },
+    ],
+
+    /* -----------------------------------
+       🟩 GPS PHÒNG HỌC — mới thêm
+    ----------------------------------- */
+    location: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      radius: { type: Number, default: 200 }, // 200m
+    },
+
+    semester: { type: String, required: true },
+    isActive: { type: Boolean, default: true },
   },
-  createdAt: { type: Date, default: Date.now },
-});
+  { timestamps: true }
+);
+
+classSchema.index({ name: 1, course: 1, semester: 1 }, { unique: true });
+classSchema.index({ code: 1 }, { unique: true });
 
 export default mongoose.model("Class", classSchema);
