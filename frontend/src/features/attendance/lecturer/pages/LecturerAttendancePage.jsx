@@ -1,21 +1,36 @@
 // src/features/attendance/lecturer/pages/LecturerAttendancePage.jsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import api from "../../../../lib/axios";
 import toast from "react-hot-toast";
 import { BarChart3, QrCode, Calendar, Clock, X, MapPin } from "lucide-react";
 
 export default function LecturerAttendancePage() {
   const [myClasses, setMyClasses] = useState([]);
-  const [selectedClass, setSelectedClass] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState("");
   const [qrImage, setQrImage] = useState("");
   const [expireAt, setExpireAt] = useState(null);
   const [countdown, setCountdown] = useState("");
   const [attendances, setAttendances] = useState([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [loadingQR, setLoadingQR] = useState(false);
+  const [updatingLocation, setUpdatingLocation] = useState(false);
   const [showBigQR, setShowBigQR] = useState(false);
 
   const timerRef = useRef(null);
+
+  /* ============================================================
+      🔍 CURRENT CLASS
+  ============================================================ */
+  const currentClass = useMemo(
+    () => myClasses.find((c) => c._id === selectedClassId) || null,
+    [myClasses, selectedClassId]
+  );
+
+  const hasLocation =
+    currentClass &&
+    currentClass.location &&
+    typeof currentClass.location.lat === "number" &&
+    typeof currentClass.location.lng === "number";
 
   /* ============================================================
       ⏳ COUNTDOWN
@@ -75,11 +90,13 @@ export default function LecturerAttendancePage() {
       🟩 TẠO QR
   ============================================================ */
   const handleCreateQR = async () => {
-    if (!selectedClass) return toast.error("Chọn lớp học phần");
+    if (!selectedClassId) return toast.error("Chọn lớp học phần");
+    if (!hasLocation)
+      return toast.error("Lớp chưa cập nhật GPS phòng học. Hãy bấm 'Cập nhật GPS phòng học' trước.");
 
     setLoadingQR(true);
     try {
-      const res = await api.post("/lecturer", { classId: selectedClass });
+      const res = await api.post("/lecturer", { classId: selectedClassId });
 
       setQrImage(res.data.qrLink || "");
       setExpireAt(res.data.expireAt || null);
@@ -100,38 +117,50 @@ export default function LecturerAttendancePage() {
   /* ============================================================
       📍 CẬP NHẬT GPS PHÒNG HỌC
   ============================================================ */
- const handleSetLocation = () => {
-  if (!selectedClass) return toast.error("Chọn lớp học phần");
+  const handleSetLocation = () => {
+    if (!selectedClassId) return toast.error("Chọn lớp học phần");
 
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
+    setUpdatingLocation(true);
 
-      try {
-        await api.post("/lecturer/set-location", {
-          classId: selectedClass,
-          lat,
-          lng,
-          radius: 200 // bạn có thể đổi 300–500 khi test
-        });
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
 
-        toast.success("Đã cập nhật vị trí phòng học!");
-      } catch (err) {
-        toast.error(err.response?.data?.message || "Không thể cập nhật GPS phòng học");
+        try {
+          await api.post("/lecturer/set-location", {
+            classId: selectedClassId,
+            lat,
+            lng,
+            radius: 200, // có thể chỉnh 300–500 khi test
+          });
+
+          toast.success("Đã cập nhật vị trí phòng học!");
+
+          // Reload danh sách lớp để cập nhật location mới
+          await loadMyClasses();
+        } catch (err) {
+          toast.error(
+            err.response?.data?.message || "Không thể cập nhật GPS phòng học"
+          );
+        } finally {
+          setUpdatingLocation(false);
+        }
+      },
+      (err) => {
+        console.error(err);
+        setUpdatingLocation(false);
+        toast.error(
+          "Không thể lấy GPS. Hãy bật Location và cấp quyền vị trí cho trình duyệt!"
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0,
       }
-    },
-    (err) => {
-      console.error(err);
-      toast.error("Không thể lấy GPS. Hãy bật Location + cấp quyền vị trí!");
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 8000,
-      maximumAge: 0,
-    }
-  );
-};
+    );
+  };
 
   return (
     <div className="space-y-6 p-4">
@@ -139,45 +168,74 @@ export default function LecturerAttendancePage() {
         <Calendar /> Điểm danh – Giảng viên
       </h1>
 
-      {/* CLASS SELECT */}
-      <div className="flex gap-3 items-center bg-white p-4 rounded-xl shadow border">
-        {loadingClasses ? (
-          <p>Đang tải lớp học...</p>
-        ) : (
-          <select
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            className="border rounded-lg px-3 py-2 min-w-[250px]"
+      {/* CLASS SELECT + ACTIONS */}
+      <div className="flex flex-col gap-3 bg-white p-4 rounded-xl shadow border">
+        <div className="flex flex-wrap gap-3 items-center">
+          {loadingClasses ? (
+            <p>Đang tải lớp học...</p>
+          ) : (
+            <select
+              value={selectedClassId}
+              onChange={(e) => setSelectedClassId(e.target.value)}
+              className="border rounded-lg px-3 py-2 min-w-[250px]"
+            >
+              <option value="">-- Chọn lớp học phần --</option>
+              {myClasses.map((cls) => (
+                <option key={cls._id} value={cls._id}>
+                  {cls.code} – {cls.course?.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <button
+            onClick={handleCreateQR}
+            disabled={loadingQR || !hasLocation || !selectedClassId}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white
+              ${
+                !selectedClassId || !hasLocation
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : loadingQR
+                  ? "bg-gray-400"
+                  : "bg-green-600 hover:bg-green-700"
+              }`}
           >
-            <option value="">-- Chọn lớp học phần --</option>
-            {myClasses.map((cls) => (
-              <option key={cls._id} value={cls._id}>
-                {cls.code} – {cls.course?.name}
-              </option>
-            ))}
-          </select>
+            <QrCode size={18} />
+            {loadingQR ? "Đang tạo..." : "Tạo QR"}
+          </button>
+
+          <button
+            onClick={handleSetLocation}
+            disabled={!selectedClassId || updatingLocation}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white
+              ${
+                !selectedClassId
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+          >
+            <MapPin size={18} />
+            {updatingLocation ? "Đang cập nhật GPS..." : "Cập nhật GPS phòng học"}
+          </button>
+        </div>
+
+        {/* Thông tin trạng thái GPS lớp hiện tại */}
+        {selectedClassId && (
+          <div className="text-sm text-gray-700">
+            <span className="font-medium">Trạng thái GPS lớp: </span>
+            {hasLocation ? (
+              <span className="text-green-600">
+                ĐÃ CÀI ĐẶT (lat: {currentClass.location.lat.toFixed(6)}, lng:{" "}
+                {currentClass.location.lng.toFixed(6)}, r ≈{" "}
+                {currentClass.location.radius || 200}m)
+              </span>
+            ) : (
+              <span className="text-red-600">
+                CHƯA CÀI ĐẶT – hãy bấm "Cập nhật GPS phòng học" trước khi tạo QR
+              </span>
+            )}
+          </div>
         )}
-
-        <button
-          onClick={handleCreateQR}
-          disabled={loadingQR}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white ${
-            loadingQR
-              ? "bg-gray-400"
-              : "bg-green-600 hover:bg-green-700"
-          }`}
-        >
-          <QrCode size={18} />
-          {loadingQR ? "Đang tạo..." : "Tạo QR"}
-        </button>
-
-        <button
-          onClick={handleSetLocation}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-        >
-          <MapPin size={18} />
-          Cập nhật GPS phòng học
-        </button>
       </div>
 
       {/* QR SHOW */}
@@ -186,7 +244,7 @@ export default function LecturerAttendancePage() {
           className="bg-white p-5 rounded-xl border shadow w-fit cursor-pointer"
           onClick={() => setShowBigQR(true)}
         >
-          <img src={qrImage} className="w-48 h-48 mx-auto" />
+          <img src={qrImage} className="w-48 h-48 mx-auto" alt="QR Code" />
 
           <div className="mt-3 text-center flex items-center justify-center gap-2 text-sm text-gray-600">
             <Clock size={16} />
@@ -222,7 +280,7 @@ export default function LecturerAttendancePage() {
               <X size={24} />
             </button>
 
-            <img src={qrImage} className="w-[350px] h-[350px]" />
+            <img src={qrImage} className="w-[350px] h-[350px]" alt="QR Code" />
           </div>
         </div>
       )}
@@ -261,10 +319,7 @@ export default function LecturerAttendancePage() {
               ))
             ) : (
               <tr>
-                <td
-                  colSpan={4}
-                  className="p-4 text-center text-gray-500"
-                >
+                <td colSpan={4} className="p-4 text-center text-gray-500">
                   Chưa có buổi điểm danh nào
                 </td>
               </tr>
