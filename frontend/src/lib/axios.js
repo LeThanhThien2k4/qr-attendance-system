@@ -1,6 +1,7 @@
 // src/lib/axios.js
 import axios from "axios";
 
+
 const getActiveToken = () => {
   const role = sessionStorage.getItem("current_role");
   if (!role) return null;
@@ -8,7 +9,7 @@ const getActiveToken = () => {
 };
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api", // <-- bắt buộc dùng env
 });
 
 api.interceptors.request.use((config) => {

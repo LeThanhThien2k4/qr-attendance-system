@@ -4,7 +4,7 @@ import api from "../../../lib/axios";
 import toast from "react-hot-toast";
 
 /* ============================================================
-   📌 TÌNH TOÁN HỌC KỲ MẶC ĐỊNH
+   📌 TÍNH TOÁN HỌC KỲ MẶC ĐỊNH
 ============================================================ */
 function getDefaultSemester() {
   const now = new Date();
@@ -47,7 +47,7 @@ export default function AdminClassListPage() {
   ============================================================ */
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [currentClass, setCurrentClass] = useState(null);
-  const [classStudents, setClassStudents] = useState([]); // sinh viên trong lớp
+  const [classStudents, setClassStudents] = useState([]);
 
   /* ============================================================
      📌 LOAD DATA
@@ -74,6 +74,7 @@ export default function AdminClassListPage() {
     try {
       const res = await api.get("/admin/users");
       const raw = res.data.users || res.data;
+
       setLecturers(raw.filter((u) => u.role === "lecturer"));
       setStudents(raw.filter((u) => u.role === "student"));
     } catch {
@@ -100,7 +101,7 @@ export default function AdminClassListPage() {
     });
 
   /* ============================================================
-     📌 SUBMIT FORM
+     📌 SUBMIT
   ============================================================ */
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -121,13 +122,12 @@ export default function AdminClassListPage() {
       setEditingId(null);
       loadClasses();
     } catch (err) {
-      const msg = err.response?.data?.message || "Lỗi xử lý lớp học";
-      toast.error(msg);
+      toast.error(err.response?.data?.message || "Lỗi xử lý lớp học");
     }
   };
 
   /* ============================================================
-     📌 EDIT CLASS
+     📌 EDIT
   ============================================================ */
   const handleEdit = (c) => {
     setEditingId(c._id);
@@ -141,7 +141,7 @@ export default function AdminClassListPage() {
   };
 
   /* ============================================================
-     📌 DELETE CLASS
+     📌 DELETE
   ============================================================ */
   const handleDelete = async (id) => {
     if (!window.confirm("Bạn chắc chắn muốn xoá lớp này?")) return;
@@ -155,7 +155,7 @@ export default function AdminClassListPage() {
   };
 
   /* ============================================================
-     📌 LOAD SINH VIÊN TRONG LỚP
+     📌 QUẢN LÝ SINH VIÊN
   ============================================================ */
   const openStudentModal = async (cls) => {
     setCurrentClass(cls);
@@ -202,9 +202,7 @@ export default function AdminClassListPage() {
         Quản lý lớp học phần
       </h1>
 
-      {/* -----------------------------------------------------------
-          FORM TẠO / SỬA
-      ------------------------------------------------------------ */}
+      {/* FORM */}
       <form
         onSubmit={handleSubmit}
         className="bg-white p-4 rounded-lg shadow border grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3"
@@ -271,9 +269,7 @@ export default function AdminClassListPage() {
         </button>
       </form>
 
-      {/* -----------------------------------------------------------
-          DANH SÁCH LỚP
-      ------------------------------------------------------------ */}
+      {/* TABLE */}
       <div className="bg-white rounded-xl shadow border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-100 text-gray-700">
@@ -282,6 +278,10 @@ export default function AdminClassListPage() {
               <th className="px-3 py-2 text-left">Tên lớp</th>
               <th className="px-3 py-2 text-left">Môn học</th>
               <th className="px-3 py-2 text-left">Giảng viên</th>
+
+              {/* 🔥 CỘT SỐ LƯỢNG SINH VIÊN */}
+              <th className="px-3 py-2 text-center">Số SV</th>
+
               <th className="px-3 py-2 text-left">Học kỳ</th>
               <th className="px-3 py-2 text-center">Hành động</th>
             </tr>
@@ -295,6 +295,12 @@ export default function AdminClassListPage() {
                   <td className="px-3 py-2">{c.name}</td>
                   <td className="px-3 py-2">{c.course?.name}</td>
                   <td className="px-3 py-2">{c.lecturer?.name}</td>
+
+                  {/* Hiển thị số lượng sinh viên */}
+                  <td className="px-3 py-2 text-center font-semibold text-blue-700">
+                    {c.students?.length || 0}
+                  </td>
+
                   <td className="px-3 py-2">{c.semester}</td>
 
                   <td className="px-3 py-2 text-center flex justify-center gap-4">
@@ -323,7 +329,7 @@ export default function AdminClassListPage() {
               ))
             ) : (
               <tr>
-                <td colSpan="6" className="text-center py-6 text-gray-500 italic">
+                <td colSpan="7" className="text-center py-6 text-gray-500 italic">
                   Chưa có lớp học phần nào
                 </td>
               </tr>
@@ -332,9 +338,7 @@ export default function AdminClassListPage() {
         </table>
       </div>
 
-      {/* -----------------------------------------------------------
-          MODAL QUẢN LÝ SINH VIÊN
-      ------------------------------------------------------------ */}
+      {/* MODAL */}
       {showStudentModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white w-[750px] rounded-lg shadow-lg p-6">
@@ -367,7 +371,7 @@ export default function AdminClassListPage() {
               )}
             </div>
 
-            {/* Danh sách sinh viên có thể thêm */}
+            {/* Danh sách thêm */}
             <h3 className="font-medium mb-1">Thêm sinh viên</h3>
             <div className="border rounded p-2 max-h-40 overflow-y-auto">
               {students
