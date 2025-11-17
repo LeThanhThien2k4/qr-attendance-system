@@ -1,3 +1,4 @@
+// backend/controllers/studentAttendance.controller.js
 import Attendance from "../models/attendance.model.js";
 import Class from "../models/class.model.js";
 
@@ -21,8 +22,12 @@ export const studentCheckIn = async (req, res) => {
     const studentId = req.user.id;
     const { attendanceId, gps } = req.body;
 
-    const attendance = await Attendance.findById(attendanceId)
-      .populate("classId");
+    if (!gps)
+      return res.status(400).json({ message: "Không nhận được vị trí GPS" });
+
+    const attendance = await Attendance.findById(attendanceId).populate(
+      "classId"
+    );
 
     if (!attendance)
       return res.status(404).json({ message: "QR không hợp lệ" });
@@ -32,71 +37,69 @@ export const studentCheckIn = async (req, res) => {
 
     const cls = attendance.classId;
 
-    // MUST HAVE GPS ROOM
-    if (!cls.location?.lat || !cls.location?.lng) {
-      return res.status(400).json({ message: "Lớp chưa thiết lập GPS phòng học!" });
-    }
+    if (!cls.location?.lat || !cls.location?.lng)
+      return res
+        .status(400)
+        .json({ message: "Lớp chưa thiết lập vị trí phòng học" });
 
-    // CHECK student in class
-    if (!cls.students.map(id => id.toString()).includes(studentId))
+    // Student must be in class
+    if (!cls.students.map((id) => id.toString()).includes(studentId))
       return res.status(403).json({ message: "Bạn không thuộc lớp này" });
 
-    // CHECK duplicated
-    if (attendance.studentsPresent.find(x => x.studentId.toString() === studentId))
+    // Already checked
+    if (
+      attendance.studentsPresent.find(
+        (x) => x.studentId.toString() === studentId
+      )
+    ) {
       return res.status(400).json({ message: "Bạn đã điểm danh rồi" });
+    }
 
-    // GPS ROOM
-    const teacherRoomGPS = {
-      lat: cls.location.lat,
-      lng: cls.location.lng,
-    };
+    // GPS distance check
+    const roomGPS = cls.location;
+    let allowedRadius = cls.location.radius || 200;
 
-    const allowedRadius = cls.location.radius || 200;
+    // Nếu accuracy kém → nới radius
+    if (gps.accuracy > 50) allowedRadius = 600;
 
-    const dist = getDistance(
-      gps.lat, gps.lng,
-      teacherRoomGPS.lat, teacherRoomGPS.lng
-    );
+    const dist = getDistance(gps.lat, gps.lng, roomGPS.lat, roomGPS.lng);
+
+    console.log("GPS distance:", dist, "accuracy:", gps.accuracy);
 
     if (dist > allowedRadius) {
       return res.status(400).json({
-        message: `Bạn đang ở quá xa phòng học (> ${allowedRadius}m)`
+        message: `Bạn đang ở quá xa phòng học (> ${allowedRadius}m)`,
       });
     }
 
- // 5) Lưu record điểm danh
-attendance.studentsPresent.push({
-  studentId,
-  checkInTime: new Date(),
-  gps,
-  device: {
-    userAgent: req.headers["user-agent"],
-    platform: req.headers["sec-ch-ua-platform"],
-  },
-});
+    // Save attendance
+    attendance.studentsPresent.push({
+      studentId,
+      checkInTime: new Date(),
+      gps,
+      device: {
+        userAgent: req.headers["user-agent"],
+        platform: req.headers["sec-ch-ua-platform"],
+      },
+    });
 
-// Cập nhật lại số liệu cho chắc chắn
-const totalStudents = cls.students?.length || 0;
+    const totalStudents = cls.students.length;
 
-attendance.presentCount = attendance.studentsPresent.length;
-attendance.absentCount = Math.max(
-  0,
-  totalStudents - attendance.presentCount
-);
+    attendance.presentCount = attendance.studentsPresent.length;
+    attendance.absentCount = totalStudents - attendance.presentCount;
 
-// Cập nhật danh sách vắng (optional, để đồng bộ)
-attendance.studentsAbsent = cls.students.filter(
-  (id) =>
-    !attendance.studentsPresent.some(
-      (p) => p.studentId.toString() === id.toString()
-    )
-);
+    attendance.studentsAbsent = cls.students.filter(
+      (id) =>
+        !attendance.studentsPresent.some(
+          (p) => p.studentId.toString() === id.toString()
+        )
+    );
 
-await attendance.save();
+    await attendance.save();
 
-return res.json({ message: "Điểm danh thành công" });
+    return res.json({ message: "Điểm danh thành công" });
   } catch (err) {
     console.error("STUDENT CHECK-IN ERROR:", err);
     res.status(500).json({ message: "Lỗi server khi điểm danh" });
-  } 
+  }
 };
