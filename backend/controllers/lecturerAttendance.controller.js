@@ -65,11 +65,12 @@ export const lecturerCreateAttendance = async (req, res) => {
     if (cls.lecturer.toString() !== lecturerId)
       return res.status(403).json({ message: "Bạn không phụ trách lớp này" });
 
-    if (!cls.location?.lat || !cls.location?.lng) {
-      return res
-        .status(400)
-        .json({ message: "Lớp chưa thiết lập GPS phòng học" });
-    }
+    if (!cls.location || typeof cls.location.lat !== "number" || typeof cls.location.lng !== "number") {
+  return res.status(400).json({
+    message: "Vui lòng cập nhật vị trí phòng học trước khi tạo QR.",
+  });
+}
+
 
     const now = new Date();
     const expireAt = new Date(now.getTime() + 5 * 60 * 1000);

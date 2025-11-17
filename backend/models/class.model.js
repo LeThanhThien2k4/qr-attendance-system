@@ -38,8 +38,8 @@ const classSchema = new mongoose.Schema(
        🟩 GPS PHÒNG HỌC — mới thêm
     ----------------------------------- */
     location: {
-      lat: { type: Number, default: null },
-      lng: { type: Number, default: null },
+      lat: { type: Number},
+      lng: { type: Number},
       radius: { type: Number, default: 200 }, // 200m
     },
 
