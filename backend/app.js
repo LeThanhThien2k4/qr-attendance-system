@@ -34,6 +34,10 @@ mongoose.connect(process.env.MONGO_URI, {
   useUnifiedTopology: true,
 }).then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ Mongo Error:", err));
+mongoose.connection.on("connected", () => {
+  console.log("🔵 Connected to MongoDB:", mongoose.connection.name);
+  console.log("🔵 Collections:", mongoose.connection.collections);
+});
 
 // Định nghĩa API routes
 app.use("/api/auth", authRoutes);

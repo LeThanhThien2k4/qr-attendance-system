@@ -15,13 +15,13 @@ const upload = multer({ dest: "uploads/" });
 const router = express.Router();
 
 // === Admin tạo 1 user thủ công ===
-router.post("/", verifyToken, requireRole("ADMIN"), createUser);
+router.post("/", verifyToken, requireRole("admin"), createUser);
 
 // === Admin import nhiều user từ Excel ===
 router.post(
   "/import",
   verifyToken,
-  requireRole("ADMIN"),
+  requireRole("admin"),
   upload.single("file"),
   importUsers
 );
@@ -30,12 +30,12 @@ router.post(
 router.get("/me", verifyToken, getMe);
 
 // === Lấy danh sách user ===
-router.get("/", verifyToken, requireRole("ADMIN"), getUsers);
+router.get("/", verifyToken, requireRole("admin"), getUsers);
 
 // === Lấy thông tin user theo slug ===
 router.get("/slug/:slug", verifyToken, getUserBySlug);
 
 // === Thống kê người dùng ===
-router.get("/stats", verifyToken, requireRole("ADMIN"), getUserStats);
+router.get("/stats", verifyToken, requireRole("admin"), getUserStats);
 
 export default router;

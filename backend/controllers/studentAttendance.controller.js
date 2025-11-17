@@ -64,29 +64,39 @@ export const studentCheckIn = async (req, res) => {
       });
     }
 
-    // SAVE
-    attendance.studentsPresent.push({
-      studentId,
-      checkInTime: new Date(),
-      gps,
-      device: {
-        userAgent: req.headers["user-agent"],
-        platform: req.headers["sec-ch-ua-platform"],
-      },
-    });
+ // 5) Lưu record điểm danh
+attendance.studentsPresent.push({
+  studentId,
+  checkInTime: new Date(),
+  gps,
+  device: {
+    userAgent: req.headers["user-agent"],
+    platform: req.headers["sec-ch-ua-platform"],
+  },
+});
 
-    attendance.presentCount += 1;
-    attendance.absentCount -= 1;
+// Cập nhật lại số liệu cho chắc chắn
+const totalStudents = cls.students?.length || 0;
 
-    attendance.studentsAbsent = attendance.studentsAbsent.filter(
-      id => id.toString() !== studentId
-    );
+attendance.presentCount = attendance.studentsPresent.length;
+attendance.absentCount = Math.max(
+  0,
+  totalStudents - attendance.presentCount
+);
 
-    await attendance.save();
+// Cập nhật danh sách vắng (optional, để đồng bộ)
+attendance.studentsAbsent = cls.students.filter(
+  (id) =>
+    !attendance.studentsPresent.some(
+      (p) => p.studentId.toString() === id.toString()
+    )
+);
 
-    res.json({ message: "Điểm danh thành công" });
+await attendance.save();
 
+return res.json({ message: "Điểm danh thành công" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+    console.error("STUDENT CHECK-IN ERROR:", err);
+    res.status(500).json({ message: "Lỗi server khi điểm danh" });
+  } 
 };

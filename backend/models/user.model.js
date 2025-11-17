@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
-    passwordHash: {
+    password: {
       type: String,
       required: true, // luôn hash bằng bcrypt
     },
