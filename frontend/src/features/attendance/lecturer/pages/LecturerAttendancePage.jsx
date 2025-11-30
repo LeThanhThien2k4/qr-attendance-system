@@ -19,7 +19,7 @@ export default function LecturerAttendancePage() {
   const timerRef = useRef(null);
 
   /* ============================================================
-      🔍 CURRENT CLASS
+      📌 CURRENT CLASS
   ============================================================ */
   const currentClass = useMemo(
     () => myClasses.find((c) => c._id === selectedClassId) || null,
@@ -33,7 +33,7 @@ export default function LecturerAttendancePage() {
     typeof currentClass.location.lng === "number";
 
   /* ============================================================
-      ⏳ COUNTDOWN
+      ⏳ COUNTDOWN HANDLER
   ============================================================ */
   const startCountdown = (expireTime) => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -55,7 +55,7 @@ export default function LecturerAttendancePage() {
   };
 
   /* ============================================================
-      📌 LOAD CLASSES
+      📘 LOAD LỚP
   ============================================================ */
   const loadMyClasses = async () => {
     try {
@@ -70,21 +70,33 @@ export default function LecturerAttendancePage() {
   };
 
   /* ============================================================
-      📘 LOAD ATTENDANCE HISTORY
+      📘 LOAD LỊCH SỬ ĐIỂM DANH
   ============================================================ */
-  const loadAttendances = async () => {
+  const loadAttendances = async (classId = "") => {
     try {
-      const res = await api.get("/lecturer");
+      const res = await api.get("/lecturer", {
+        params: classId ? { classId } : {},
+      });
       setAttendances(res.data || []);
     } catch {
       toast.error("Không thể tải lịch sử điểm danh");
     }
   };
 
+  /* ============================================================
+      🔄 LOAD DATA — FIRST MOUNT
+  ============================================================ */
   useEffect(() => {
     loadMyClasses();
     loadAttendances();
   }, []);
+
+  /* ============================================================
+      🔄 LOAD HISTORY — WHEN SELECT CLASS
+  ============================================================ */
+  useEffect(() => {
+    if (selectedClassId) loadAttendances(selectedClassId);
+  }, [selectedClassId]);
 
   /* ============================================================
       🟩 TẠO QR
@@ -92,7 +104,7 @@ export default function LecturerAttendancePage() {
   const handleCreateQR = async () => {
     if (!selectedClassId) return toast.error("Chọn lớp học phần");
     if (!hasLocation)
-      return toast.error("Lớp chưa cập nhật GPS phòng học. Hãy bấm 'Cập nhật GPS phòng học' trước.");
+      return toast.error("Lớp chưa cập nhật GPS phòng học. Hãy cập nhật GPS trước.");
 
     setLoadingQR(true);
     try {
@@ -106,7 +118,7 @@ export default function LecturerAttendancePage() {
       }
 
       toast.success("Tạo QR thành công");
-      loadAttendances();
+      loadAttendances(selectedClassId);
     } catch (err) {
       toast.error(err.response?.data?.message || "Không thể tạo QR");
     } finally {
@@ -132,17 +144,13 @@ export default function LecturerAttendancePage() {
             classId: selectedClassId,
             lat,
             lng,
-            radius: 200, // có thể chỉnh 300–500 khi test
+            radius: 200,
           });
 
           toast.success("Đã cập nhật vị trí phòng học!");
-
-          // Reload danh sách lớp để cập nhật location mới
-          await loadMyClasses();
+          await loadMyClasses(); // lấy lại location mới
         } catch (err) {
-          toast.error(
-            err.response?.data?.message || "Không thể cập nhật GPS phòng học"
-          );
+          toast.error(err.response?.data?.message || "Không thể cập nhật GPS");
         } finally {
           setUpdatingLocation(false);
         }
@@ -150,15 +158,9 @@ export default function LecturerAttendancePage() {
       (err) => {
         console.error(err);
         setUpdatingLocation(false);
-        toast.error(
-          "Không thể lấy GPS. Hãy bật Location và cấp quyền vị trí cho trình duyệt!"
-        );
+        toast.error("Không thể lấy GPS. Hãy bật Location và cấp quyền vị trí.");
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 0,
-      }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   };
 
@@ -168,8 +170,8 @@ export default function LecturerAttendancePage() {
         <Calendar /> Điểm danh – Giảng viên
       </h1>
 
-      {/* CLASS SELECT + ACTIONS */}
-      <div className="flex flex-col gap-3 bg-white p-4 rounded-xl shadow border">
+      {/* SELECT CLASS + ACTION BUTTONS */}
+      <div className="bg-white p-4 rounded-xl shadow border space-y-3">
         <div className="flex flex-wrap gap-3 items-center">
           {loadingClasses ? (
             <p>Đang tải lớp học...</p>
@@ -188,6 +190,7 @@ export default function LecturerAttendancePage() {
             </select>
           )}
 
+          {/* Tạo QR */}
           <button
             onClick={handleCreateQR}
             disabled={loadingQR || !hasLocation || !selectedClassId}
@@ -204,6 +207,7 @@ export default function LecturerAttendancePage() {
             {loadingQR ? "Đang tạo..." : "Tạo QR"}
           </button>
 
+          {/* Cập nhật GPS */}
           <button
             onClick={handleSetLocation}
             disabled={!selectedClassId || updatingLocation}
@@ -215,11 +219,11 @@ export default function LecturerAttendancePage() {
               }`}
           >
             <MapPin size={18} />
-            {updatingLocation ? "Đang cập nhật GPS..." : "Cập nhật GPS phòng học"}
+            {updatingLocation ? "Đang cập nhật..." : "Cập nhật GPS phòng học"}
           </button>
         </div>
 
-        {/* Thông tin trạng thái GPS lớp hiện tại */}
+        {/* STATUS GPS */}
         {selectedClassId && (
           <div className="text-sm text-gray-700">
             <span className="font-medium">Trạng thái GPS lớp: </span>
@@ -231,21 +235,20 @@ export default function LecturerAttendancePage() {
               </span>
             ) : (
               <span className="text-red-600">
-                CHƯA CÀI ĐẶT – hãy bấm "Cập nhật GPS phòng học" trước khi tạo QR
+                CHƯA CÀI ĐẶT – hãy cập nhật GPS trước khi tạo QR
               </span>
             )}
           </div>
         )}
       </div>
 
-      {/* QR SHOW */}
+      {/* QR DISPLAY */}
       {qrImage && (
         <div
           className="bg-white p-5 rounded-xl border shadow w-fit cursor-pointer"
           onClick={() => setShowBigQR(true)}
         >
           <img src={qrImage} className="w-48 h-48 mx-auto" alt="QR Code" />
-
           <div className="mt-3 text-center flex items-center justify-center gap-2 text-sm text-gray-600">
             <Clock size={16} />
             {countdown === "Hết hạn" ? (
@@ -256,7 +259,6 @@ export default function LecturerAttendancePage() {
               </span>
             )}
           </div>
-
           <p className="text-center text-blue-600 text-sm mt-2">
             Nhấp để phóng to mã QR
           </p>
@@ -279,7 +281,6 @@ export default function LecturerAttendancePage() {
             >
               <X size={24} />
             </button>
-
             <img src={qrImage} className="w-[350px] h-[350px]" alt="QR Code" />
           </div>
         </div>
@@ -295,6 +296,7 @@ export default function LecturerAttendancePage() {
           <thead className="bg-gray-100 text-gray-700">
             <tr>
               <th className="p-2 text-left">Lớp</th>
+              <th className="p-2 text-left">Môn học</th>
               <th className="p-2 text-left">Ngày</th>
               <th className="p-2 text-left">Có mặt</th>
               <th className="p-2 text-left">Vắng</th>
@@ -305,7 +307,8 @@ export default function LecturerAttendancePage() {
             {attendances.length ? (
               attendances.map((att) => (
                 <tr key={att._id} className="border-b hover:bg-gray-50">
-                  <td className="p-2">{att.classId?.name}</td>
+                  <td className="p-2">{att.classId?.code}</td>
+                  <td className="p-2">{att.classId?.course?.name || "—"}</td>
                   <td className="p-2">
                     {new Date(att.date).toLocaleString("vi-VN")}
                   </td>
@@ -319,7 +322,7 @@ export default function LecturerAttendancePage() {
               ))
             ) : (
               <tr>
-                <td colSpan={4} className="p-4 text-center text-gray-500">
+                <td colSpan={5} className="p-4 text-center text-gray-500">
                   Chưa có buổi điểm danh nào
                 </td>
               </tr>

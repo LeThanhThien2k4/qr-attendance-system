@@ -5,10 +5,6 @@ import mongoose from "mongoose";
 
 import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
-import courseRoutes from "./routes/course.route.js";
-import classRoutes from "./routes/class.route.js";
-import attendanceRoutes from "./routes/attendance.route.js";
-import aiRoutes from "./routes/ai.route.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import passwordResetRoutes from "./routes/passwordReset.route.js";
 import notificationRoutes from "./routes/notification.route.js";
@@ -20,6 +16,10 @@ import adminClassesRoute from "./routes/adminClasses.route.js";
 import adminOfficialClassRoutes from "./routes/adminOfficialClass.route.js";
 import lecturerAttendanceRoutes from "./routes/lecturerAttendances.route.js";
 import studentAttendanceRoutes from "./routes/studentAttendance.route.js";
+import adminDashboardRoutes from "./routes/adminDashboard.route.js";
+import adminRoute from "./routes/admin.route.js";
+import lecturerDashboardRoutes from "./routes/lecturerDashboard.route.js";
+import studentDashboardRoutes from "./routes/studentDashboard.route.js";
 
 
 
@@ -42,10 +42,6 @@ mongoose.connection.on("connected", () => {
 // Định nghĩa API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/courses", courseRoutes);
-app.use("/api/classes", classRoutes);
-app.use("/api/attendance", attendanceRoutes);
-app.use("/api/ai", aiRoutes);
 app.use("/api/password", passwordResetRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
@@ -55,7 +51,12 @@ app.use("/api/admin/attendances", adminAttendancesRoute);
 app.use("/api/admin/classes", adminClassesRoute);
 app.use("/api/admin/official-classes", adminOfficialClassRoutes);
 app.use("/api/lecturer", lecturerAttendanceRoutes);
+app.use("/api/lecturer", lecturerDashboardRoutes);
 app.use("/api/student", studentAttendanceRoutes);
+app.use("/api/admin/dashboard", adminDashboardRoutes);
+app.use("/api/admin", adminRoute);
+app.use("/api/student", studentDashboardRoutes);
+
 
 
 // Middleware xử lý lỗi

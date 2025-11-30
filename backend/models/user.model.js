@@ -4,9 +4,12 @@ const userSchema = new mongoose.Schema(
   {
     code: {
       type: String,
-      required: true,
+      required: function () {
+    return this.role !== "admin";   // student & lecturer bắt buộc, admin thì không
+  },
       unique: true, // Mã sinh viên / mã giảng viên
       trim: true,
+      sparse: true,
     },
 
     name: {

@@ -1,23 +1,30 @@
 import React, { useEffect, useMemo, useState } from "react";
 import api from "../../../lib/axios";
-// recharts
+
 import {
   PieChart,
   Pie,
   Cell,
-  ResponsiveContainer,
-  Tooltip as RTooltip,
+  LineChart,
+  Line,
   BarChart,
   Bar,
   XAxis,
   YAxis,
+  Tooltip as RTooltip,
   CartesianGrid,
+  ResponsiveContainer,
 } from "recharts";
 
 const ROLE_COLORS = {
   admin: "#6366F1",
   lecturer: "#22C55E",
   student: "#3B82F6",
+};
+
+const ATT_COLORS = {
+  present: "#22C55E",
+  absent: "#EF4444",
 };
 
 export default function AdminDashboardPage() {
@@ -29,11 +36,11 @@ export default function AdminDashboardPage() {
     let alive = true;
     (async () => {
       try {
-        const { data } = await api.get("/users/stats");
+        const { data } = await api.get("/admin/dashboard");
         if (!alive) return;
         setStats(data);
       } catch (e) {
-        setErr(e?.response?.data?.message || e.message || "Load stats failed");
+        setErr(e?.response?.data?.message || e.message);
       } finally {
         if (alive) setLoading(false);
       }
@@ -43,72 +50,82 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
+  /* ----------- Pie: User Role ----------- */
   const roleSeries = useMemo(() => {
-    if (!stats?.byRole) return [];
-    // stats.byRole: [{_id:"ADMIN", count: x}, ...]
-    return stats.byRole.map((r) => ({
+    if (!stats?.userByRole) return [];
+    return stats.userByRole.map((r) => ({
       name: r._id,
       value: r.count,
       color: ROLE_COLORS[r._id] || "#94A3B8",
     }));
   }, [stats]);
 
-  const yearSeries = useMemo(() => {
-    if (!stats?.byYear) return [];
-    // stats.byYear: [{_id: 2025, count: x}, ...]
-    return stats.byYear
-      .filter((y) => y._id) // bỏ null
-      .map((y) => ({ year: String(y._id), count: y.count }))
-      .slice(0, 8); // tránh quá dài
+  /* ----------- Monthly Line Chart ----------- */
+  const monthlySeries = useMemo(() => {
+    if (!stats?.attendanceMonthly) return [];
+    return stats.attendanceMonthly.map((m) => ({
+      month: `T${m._id}`,
+      present: m.present,
+      absent: m.absent,
+    }));
   }, [stats]);
 
-  if (loading)
-    return (
-      <div className="p-6">
-        <p>Đang tải thống kê...</p>
-      </div>
-    );
+  /* ----------- Attendance By Class ----------- */
+  const classSeries = useMemo(() => {
+    if (!stats?.attendanceByClass) return [];
+    return stats.attendanceByClass.map((c) => ({
+      className: c.className,
+      present: c.present,
+      absent: c.absent,
+    }));
+  }, [stats]);
 
-  if (err)
-    return (
-      <div className="p-6">
-        <p className="text-red-600">Lỗi: {err}</p>
-      </div>
-    );
+  /* ----------- Overall Attendance Pie ----------- */
+  const attendancePie = useMemo(() => {
+    if (!stats?.attendanceSummary) return [];
+    return [
+      {
+        name: "Có mặt",
+        value: stats.attendanceSummary.present,
+        color: ATT_COLORS.present,
+      },
+      {
+        name: "Vắng",
+        value: stats.attendanceSummary.absent,
+        color: ATT_COLORS.absent,
+      },
+    ];
+  }, [stats]);
+
+  if (loading) return <div className="p-6">Đang tải thống kê...</div>;
+  if (err) return <div className="p-6 text-red-600">Lỗi: {err}</div>;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Top number cards */}
+    <div className="p-6 space-y-8">
+      {/* ================= TOP CARDS ================= */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard label="Tổng người dùng" value={stats?.total ?? 0} />
+        <StatCard label="Tổng người dùng" value={stats?.totalUsers || 0} />
         <StatCard
           label="Admin"
-          value={stats?.byRole?.find((x) => x._id === "admin")?.count || 0}
+          value={stats?.userByRole?.find((x) => x._id === "admin")?.count || 0}
         />
         <StatCard
           label="Giảng viên"
-          value={stats?.byRole?.find((x) => x._id === "lecturer")?.count || 0}
+          value={stats?.userByRole?.find((x) => x._id === "lecturer")?.count || 0}
         />
         <StatCard
           label="Sinh viên"
-          value={stats?.byRole?.find((x) => x._id === "student")?.count || 0}
+          value={stats?.userByRole?.find((x) => x._id === "student")?.count || 0}
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-4 shadow border">
-          <h3 className="font-semibold mb-3">Tỷ lệ theo vai trò</h3>
-          <div className="h-72">
+      {/* ================= 2 PIE CHARTS FLEX ================= */}
+      <div className="flex flex-wrap gap-6">
+        <div className="flex-1 min-w-[320px]">
+          <ChartCard title="Tỷ lệ theo vai trò" legend={roleSeries}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie
-                  data={roleSeries}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={110}
-                  innerRadius={50}
-                >
+                <Pie data={roleSeries} dataKey="value" innerRadius={50} outerRadius={110}>
                   {roleSeries.map((e, i) => (
                     <Cell key={i} fill={e.color} />
                   ))}
@@ -116,32 +133,83 @@ export default function AdminDashboardPage() {
                 <RTooltip />
               </PieChart>
             </ResponsiveContainer>
-          </div>
-          <div className="flex flex-wrap gap-3 mt-2">
-            {roleSeries.map((e) => (
-              <LegendDot key={e.name} color={e.color} text={`${e.name} (${e.value})`} />
-            ))}
-          </div>
+          </ChartCard>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow border">
-          <h3 className="font-semibold mb-3">Người dùng theo năm học</h3>
-          <div className="h-72">
+        <div className="flex-1 min-w-[320px]">
+          <ChartCard title="Tỷ lệ có mặt / vắng toàn hệ thống" legend={attendancePie}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={yearSeries}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="year" />
-                <YAxis allowDecimals={false} />
+              <PieChart>
+                <Pie data={attendancePie} dataKey="value" innerRadius={50} outerRadius={110}>
+                  {attendancePie.map((e, i) => (
+                    <Cell key={i} fill={e.color} />
+                  ))}
+                </Pie>
                 <RTooltip />
-                <Bar dataKey="count" />
-              </BarChart>
+              </PieChart>
             </ResponsiveContainer>
-          </div>
+          </ChartCard>
         </div>
+      </div>
+
+      {/* ================= FULL WIDTH MONTHLY ================= */}
+      <ChartCardWide title="Chuyên cần theo tháng">
+        <ResponsiveContainer width="100%" height={350}>
+          <LineChart data={monthlySeries}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" />
+            <YAxis allowDecimals={false} />
+            <RTooltip />
+            <Line type="monotone" dataKey="present" stroke="#22C55E" strokeWidth={2} />
+            <Line type="monotone" dataKey="absent" stroke="#EF4444" strokeWidth={2} />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCardWide>
+
+      {/* ================= FULL WIDTH CLASS BAR ================= */}
+      <ChartCardWide title="Chuyên cần theo lớp">
+        <ResponsiveContainer width="100%" height={350}>
+          <BarChart data={classSeries}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="className" />
+            <YAxis allowDecimals={false} />
+            <RTooltip />
+            <Bar dataKey="present" fill="#22C55E" />
+            <Bar dataKey="absent" fill="#EF4444" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCardWide>
+
+      {/* ================= TOP ABSENT STUDENTS ================= */}
+      <div className="bg-white p-4 rounded-xl shadow border">
+        <h3 className="font-semibold mb-4">Top sinh viên vắng nhiều nhất</h3>
+
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b">
+              <th className="py-2">Sinh viên</th>
+              <th className="py-2">Lớp</th>
+              <th className="py-2">Số buổi vắng</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats?.topAbsentStudents?.map((s, i) => (
+              <tr key={i} className="border-b">
+                <td className="py-2">{s.name}</td>
+                <td className="py-2">{s.className || "-"}</td>
+                <td className="py-2 text-red-600 font-semibold">{s.absentCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
+
+/* ====================================================== */
+/* COMPONENTS */
+/* ====================================================== */
 
 function StatCard({ label, value }) {
   return (
@@ -152,10 +220,36 @@ function StatCard({ label, value }) {
   );
 }
 
+function ChartCard({ title, children, legend }) {
+  return (
+    <div className="bg-white rounded-xl p-4 shadow border h-[420px] flex flex-col">
+      <h3 className="font-semibold mb-3">{title}</h3>
+      <div className="flex-1">{children}</div>
+
+      {legend && (
+        <div className="flex flex-wrap gap-3 mt-3 justify-center">
+          {legend.map((e, idx) => (
+            <LegendDot key={idx} color={e.color} text={`${e.name} (${e.value})`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChartCardWide({ title, children }) {
+  return (
+    <div className="bg-white rounded-xl p-4 shadow border h-[430px]">
+      <h3 className="font-semibold mb-4">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
 function LegendDot({ color, text }) {
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="w-3 h-3 rounded-full" style={{ background: color }} />
+    <div className="flex items-center gap-2 text-sm whitespace-nowrap">
+      <span className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
       <span>{text}</span>
     </div>
   );

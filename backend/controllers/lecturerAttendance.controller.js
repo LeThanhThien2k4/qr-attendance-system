@@ -3,11 +3,13 @@ import QRCode from "qrcode";
 import Attendance from "../models/attendance.model.js";
 import Class from "../models/class.model.js";
 
-/* Haversine */
+/* ===========================================================
+   HÀM TÍNH KHOẢNG CÁCH (nếu cần dùng sau)
+   ==========================================================*/
 const getDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371e3;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lat2 - lon1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
 
   const a =
     Math.sin(dLat / 2) ** 2 +
@@ -19,15 +21,14 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 /* ===========================================================
-   GIẢNG VIÊN ĐẶT GPS PHÒNG HỌC
-=============================================================*/
+   1) GIẢNG VIÊN CẬP NHẬT GPS PHÒNG HỌC
+   ==========================================================*/
 export const lecturerSetClassLocation = async (req, res) => {
   try {
     const lecturerId = req.user.id;
     const { classId, lat, lng, radius } = req.body;
 
     const cls = await Class.findById(classId);
-
     if (!cls) return res.status(404).json({ message: "Lớp không tồn tại" });
 
     if (cls.lecturer.toString() !== lecturerId)
@@ -36,7 +37,7 @@ export const lecturerSetClassLocation = async (req, res) => {
     cls.location = {
       lat,
       lng,
-      radius: radius || 200, // default 200m
+      radius: radius || 200,
     };
 
     await cls.save();
@@ -51,8 +52,8 @@ export const lecturerSetClassLocation = async (req, res) => {
 };
 
 /* ===========================================================
-   TẠO QR ĐIỂM DANH
-=============================================================*/
+   2) GIẢNG VIÊN TẠO QR ĐIỂM DANH
+   ==========================================================*/
 export const lecturerCreateAttendance = async (req, res) => {
   try {
     const lecturerId = req.user.id;
@@ -65,15 +66,18 @@ export const lecturerCreateAttendance = async (req, res) => {
     if (cls.lecturer.toString() !== lecturerId)
       return res.status(403).json({ message: "Bạn không phụ trách lớp này" });
 
-    if (!cls.location || typeof cls.location.lat !== "number" || typeof cls.location.lng !== "number") {
-  return res.status(400).json({
-    message: "Vui lòng cập nhật vị trí phòng học trước khi tạo QR.",
-  });
-}
-
+    if (
+      !cls.location ||
+      typeof cls.location.lat !== "number" ||
+      typeof cls.location.lng !== "number"
+    ) {
+      return res.status(400).json({
+        message: "Vui lòng cập nhật GPS phòng học trước khi tạo QR.",
+      });
+    }
 
     const now = new Date();
-    const expireAt = new Date(now.getTime() + 5 * 60 * 1000);
+    const expireAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 phút
 
     const attendance = await Attendance.create({
       classId,
@@ -97,7 +101,61 @@ export const lecturerCreateAttendance = async (req, res) => {
     attendance.qrLink = qrLink;
     await attendance.save();
 
-    res.json(attendance);
+    return res.json(attendance);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ===========================================================
+   3) LẤY DANH SÁCH LỚP GIẢNG VIÊN PHỤ TRÁCH
+   ==========================================================*/
+export const lecturerGetMyClasses = async (req, res) => {
+  try {
+    const lecturerId = req.user.id;
+
+    const classes = await Class.find({ lecturer: lecturerId })
+      .populate("course", "name")
+      .populate("students", "_id")
+      .lean(); // tránh mất field trong JSON
+
+    return res.json(classes);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ===========================================================
+   4) LỊCH SỬ ĐIỂM DANH CỦA GIẢNG VIÊN
+   ==========================================================*/
+export const lecturerGetAttendances = async (req, res) => {
+  try {
+    const lecturerId = req.user.id;
+    const { classId } = req.query;
+
+    const filter = { lecturerId };
+
+    if (classId) {
+      filter.classId = classId;
+    }
+
+    const attendances = await Attendance.find(filter)
+      .populate({
+    path: "classId",
+    select: "name code course",
+    populate: {
+      path: "course",
+      select: "name"
+    }
+  })
+      .lean();
+
+    const formatted = attendances.map(att => ({
+      ...att,
+      date: att.date || att.createdAt || null
+    }));
+
+    return res.json(formatted);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

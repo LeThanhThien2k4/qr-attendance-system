@@ -11,20 +11,19 @@ import DashboardLayout from "../layouts/DashboardLayout.jsx";
 
 // ADMIN
 import AdminDashboardPage from "../features/admin/pages/AdminDashboardPage.jsx";
-import AdminUserImportPage from "../features/admin/pages/AdminUserImportPage.jsx";
 import AdminStudentListPage from "../features/admin/pages/AdminStudentListPage.jsx";
 import AdminCourseListPage from "../features/admin/pages/AdminCourseListPage.jsx";
 import AdminAttendanceListPage from "../features/admin/pages/AdminAttendanceListPage.jsx";
 import AdminClassListPage from "../features/admin/pages/AdminClassListPage.jsx";
 import AdminOfficialClassListPage from "../features/admin/pages/AdminOfficialClassListPage.jsx";
 import AdminLecturerListPage from "../features/admin/pages/AdminLecturerListPage.jsx";
-
+import CreateAdminPage from "../features/admin/pages/CreateAdminPage.jsx";
 // LECTURER
 import LecturerDashboardPage from "../features/dashboard/pages/LecturerDashboardPage.jsx";
 import LecturerAttendancePage from "../features/attendance/lecturer/pages/LecturerAttendancePage.jsx";
 
 // STUDENT
-import StudentDashboardPage from "../features/attendance/student/pages/StudentDashboardPage.jsx";
+import StudentDashboardPage from "../features/dashboard/pages/StudentDashboardPage.jsx";
 import StudentScanPage from "../features/attendance/student/pages/StudentScanPage.jsx";
 
 const router = createBrowserRouter([
@@ -52,7 +51,7 @@ const router = createBrowserRouter([
           { path: "attendances", element: <AdminAttendanceListPage /> },
           { path: "classes", element: <AdminClassListPage /> },
           { path: "official-classes", element: <AdminOfficialClassListPage /> },
-          { path: "import", element: <AdminUserImportPage /> },
+          { path: "create-admin", element: <CreateAdminPage /> }
         ],
       },
 

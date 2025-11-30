@@ -41,7 +41,8 @@ export default function DashboardLayout() {
       { to: "/admin/official-classes", label: "Quản lý lớp học chính quy" },
       { to: "/admin/classes", label: "Quản lý lớp học phần" },
       { to: "/admin/attendances", label: "Quản lý điểm danh" },
-      { to: "/admin/import", label: "Import Excel" },
+      { to: "/admin/create-admin", label: "Tạo Admin" },
+
     ],
     lecturer: [
       { to: "/lecturer/dashboard", label: "Tổng quan" },
@@ -51,8 +52,7 @@ export default function DashboardLayout() {
     student: [
       { to: "/student/dashboard", label: "Tổng quan" },
       { to: "/student/attendance", label: "Điểm danh" },
-      { to: "/student/classes", label: "Lớp học" },
-      { to: "/student/notifications", label: "Thông báo" },
+
     ],
   };
 
