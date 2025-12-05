@@ -62,7 +62,13 @@ export const studentCheckIn = async (req, res) => {
     // Nếu accuracy kém → nới radius
     if (gps.accuracy > 50) allowedRadius = 600;
 
-    const dist = getDistance(gps.lat, gps.lng, roomGPS.lat, roomGPS.lng);
+    const dist = getDistance(
+  Number(gps.lat),
+  Number(gps.lng),
+  Number(roomGPS.lat),
+  Number(roomGPS.lng)
+);
+
 
     console.log("GPS distance:", dist, "accuracy:", gps.accuracy);
 

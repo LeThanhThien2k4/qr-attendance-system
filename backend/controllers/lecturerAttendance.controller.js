@@ -35,9 +35,9 @@ export const lecturerSetClassLocation = async (req, res) => {
       return res.status(403).json({ message: "Bạn không phụ trách lớp này" });
 
     cls.location = {
-      lat,
-      lng,
-      radius: radius || 200,
+      lat: Number(lat),
+      lng: Number(lng),
+      radius: Number(radius) || 200,
     };
 
     await cls.save();
@@ -77,7 +77,7 @@ export const lecturerCreateAttendance = async (req, res) => {
     }
 
     const now = new Date();
-    const expireAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 phút
+    const expireAt = new Date(now.getTime() + 1 * 60 * 1000); // 1 phút
 
     const attendance = await Attendance.create({
       classId,

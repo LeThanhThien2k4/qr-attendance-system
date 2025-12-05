@@ -17,11 +17,11 @@ export default function StudentScanPage() {
 
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          const data = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          };
+        const data = {
+          lat: Number(pos.coords.latitude),
+          lng: Number(pos.coords.longitude),
+          accuracy: Number(pos.coords.accuracy),
+        };  
 
           console.log("GPS Update:", data);
 
