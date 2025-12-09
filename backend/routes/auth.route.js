@@ -1,10 +1,12 @@
 import express from "express";
-import { login, changePassword } from "../controllers/auth.controller.js";
-import  verifyToken  from "../middlewares/auth.js";
+import { login, forgotPasswordRequestOTP, forgotPasswordVerifyOTP } from "../controllers/auth.controller.js";
 
 const router = express.Router();
 
 router.post("/login", login);
-router.post("/change-password", verifyToken, changePassword);
+
+// 🔥 QUÊN MẬT KHẨU – KHÔNG CẦN TOKEN
+router.post("/forgot-password/request-otp", forgotPasswordRequestOTP);
+router.post("/forgot-password/verify", forgotPasswordVerifyOTP);
 
 export default router;

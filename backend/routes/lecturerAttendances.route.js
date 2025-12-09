@@ -6,6 +6,9 @@ import {
   lecturerSetClassLocation,
   lecturerGetMyClasses,
   lecturerGetAttendances,
+  lecturerGetAttendanceDetail,
+  lecturerManualUpdate,
+  lecturerEndAttendanceSession
 } from "../controllers/lecturerAttendance.controller.js";
 
 const router = express.Router();
@@ -24,4 +27,8 @@ router.post("/", lecturerCreateAttendance);
 // ⭐ CẬP NHẬT GPS
 router.post("/set-location", lecturerSetClassLocation);
 
+router.get("/attendance/:id/detail", lecturerGetAttendanceDetail);
+router.patch("/attendance/:id/manual-update", lecturerManualUpdate);
+
+router.post("/end-session", lecturerEndAttendanceSession);
 export default router;

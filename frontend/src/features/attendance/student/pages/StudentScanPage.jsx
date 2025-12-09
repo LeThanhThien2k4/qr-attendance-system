@@ -121,6 +121,11 @@ export default function StudentScanPage() {
       ) : (
         <div id="reader" className="rounded-xl overflow-hidden"></div>
       )}
+      <p>Lat: {gps?.lat}</p>
+<p>Lng: {gps?.lng}</p>
+<p>Accuracy: ±{gps?.accuracy}m</p>
+
     </div>
+    
   );
 }

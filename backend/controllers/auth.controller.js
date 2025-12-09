@@ -2,53 +2,33 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
 import dotenv from "dotenv";
+import nodemailer from "nodemailer";   // 🔥 BẮT BUỘC PHẢI CÓ
 dotenv.config();
 
+/* ============================
+    LOGIN
+=============================== */
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-
-    console.log("===== LOGIN REQUEST =====");
-    console.log("REQ BODY:", req.body);
-
-    // 1) Validate input FE
-    if (!email || !password) {
-      console.log("❌ Missing email/password at FE");
+    if (!email || !password)
       return res.status(400).json({ message: "Thiếu email hoặc mật khẩu" });
-    }
 
-    // 2) Tìm user trong DB
     const user = await User.findOne({ email });
-    console.log("FOUND USER:", user);
+    if (!user) return res.status(404).json({ message: "Email không tồn tại" });
 
-    if (!user) {
-      console.log("❌ User not found in DB");
-      return res.status(404).json({ message: "Email không tồn tại" });
-    }
+    if (!user.password)
+      return res.status(500).json({ message: "Mật khẩu không tồn tại trong DB" });
 
-    if (!user.password) {
-      console.log("❌ DB password is undefined => user bị lỗi DB");
-      return res.status(500).json({
-        message: "Tài khoản bị lỗi: password không tồn tại trong DB",
-      });
-    }
-
-    console.log("COMPARE => password:", password, " | hash:", user.password);
-
-    // 3) So sánh mật khẩu
     const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      console.log("❌ Wrong password, compare failed");
+    if (!isMatch)
       return res.status(401).json({ message: "Sai mật khẩu" });
-    }
 
-    // 4) Gen token
     const token = jwt.sign(
       {
         id: user._id,
-        role: user.role.toLowerCase(), // đảm bảo role luôn lowercase
+        role: user.role.toLowerCase(),
         email: user.email,
         name: user.fullName || user.name,
       },
@@ -56,43 +36,96 @@ export const login = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    console.log("✅ LOGIN SUCCESS");
-
-    return res.json({
+    res.json({
       message: "Đăng nhập thành công",
       token,
       role: user.role,
     });
+
   } catch (err) {
-    
-    console.error("❌ LOGIN ERROR:", err);
-    return res.status(500).json({ message: "Lỗi server khi đăng nhập" });
+    console.error("LOGIN ERROR:", err);
+    res.status(500).json({ message: "Lỗi server khi đăng nhập" });
   }
 };
 
+/* ============================================
+   TẠO TRANSPORTER EMAIL
+============================================ */
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
-// ===============================================
-// ĐỔI MẬT KHẨU
-// ===============================================
-
-export const changePassword = async (req, res) => {
+/* ============================================
+   1) USER NHẬP EMAIL → GỬI OTP
+============================================ */
+export const forgotPasswordRequestOTP = async (req, res) => {
   try {
-    const { oldPassword, newPassword } = req.body;
-    const user = await User.findById(req.user.id);
+    const { email } = req.body;
 
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!email)
+      return res.status(400).json({ message: "Thiếu email" });
 
-    const match = await bcrypt.compare(oldPassword, user.password);
-    if (!match)
-      return res.status(400).json({ message: "Old password incorrect" });
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(404).json({ message: "Email không tồn tại" });
 
-    user.password = await bcrypt.hash(newPassword, 10);
+    const otp = Math.floor(100000 + Math.random() * 900000);
+
+    user.resetOtp = otp;
+    user.resetOtpExpires = Date.now() + 5 * 60 * 1000; // 5 phút
     await user.save();
 
-    res.json({ message: "Password changed successfully" });
+    await transporter.sendMail({
+      from: `"QR Attendance System" <${process.env.MAIL_USER}>`,
+      to: user.email,
+      subject: "OTP đặt lại mật khẩu",
+      html: `
+        <h2>OTP đặt lại mật khẩu:</h2>
+        <h1 style="color:blue;">${otp}</h1>
+        <p>OTP có hiệu lực trong 5 phút.</p>
+      `,
+    });
 
+    res.json({ message: "OTP đã gửi qua email!" });
   } catch (err) {
-    console.error("CHANGE PASSWORD ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("FORGOT PASSWORD OTP ERROR:", err);
+    res.status(500).json({ message: "Không thể gửi OTP" });
+  }
+};
+
+/* ============================================
+   2) USER NHẬP OTP + MẬT KHẨU MỚI
+============================================ */
+export const forgotPasswordVerifyOTP = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword)
+      return res.status(400).json({ message: "Thiếu dữ liệu" });
+
+    const user = await User.findOne({ email });
+
+    if (!user || !user.resetOtp)
+      return res.status(400).json({ message: "OTP không tồn tại" });
+
+    if (user.resetOtp != otp)
+      return res.status(400).json({ message: "OTP sai" });
+
+    if (Date.now() > user.resetOtpExpires)
+      return res.status(400).json({ message: "OTP đã hết hạn" });
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.resetOtp = undefined;
+    user.resetOtpExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Đặt lại mật khẩu thành công!" });
+  } catch (err) {
+    console.error("VERIFY OTP ERROR:", err);
+    res.status(500).json({ message: "Không thể xác minh OTP" });
   }
 };

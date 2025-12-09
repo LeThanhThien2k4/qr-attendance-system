@@ -3,8 +3,9 @@ import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom"
 
 // AUTH
 import LoginPage from "../features/auth/pages/LoginPage.jsx";
-import ChangePasswordPage from "../features/auth/pages/ChangePasswordPage.jsx";
 import RequireRole from "../features/auth/components/RequireRole.jsx";
+import ChangePasswordWithOTP from "../features/auth/pages/ChangePasswordWithOTP.jsx";    
+import ForgotPasswordPage from "../features/auth/pages/ForgotPasswordPage.jsx";
 
 // LAYOUT
 import DashboardLayout from "../layouts/DashboardLayout.jsx";
@@ -32,12 +33,16 @@ const router = createBrowserRouter([
 
   // Login
   { path: "/login", element: <LoginPage /> },
+  //forgot password
+    { path: "/forgot-password", element: <ForgotPasswordPage /> },
+    // ĐỔI MK QUA OTP
+  { path: "/change-password-otp", element: <ChangePasswordWithOTP /> },
+
 
   // Protected routes
   {
     element: <DashboardLayout />,
     children: [
-      { path: "change-password", element: <ChangePasswordPage /> },
 
       // ======================= ADMIN =======================
       {

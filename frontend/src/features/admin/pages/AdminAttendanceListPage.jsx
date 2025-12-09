@@ -18,7 +18,7 @@ export default function AdminAttendanceListPage() {
   });
 
   /* =============================
-          LOAD DATA
+          LOAD FILTER DATA
   ============================= */
   const loadFilterData = async () => {
     try {
@@ -30,21 +30,28 @@ export default function AdminAttendanceListPage() {
       const resCourses = await api.get("/admin/courses");
       setCourses(resCourses.data);
 
-      // Load classes
+      // Load classes (mọi lớp học phần)
       const resClasses = await api.get("/admin/classes");
       setClasses(resClasses.data);
     } catch (err) {
-      console.error(err);
       toast.error("Không thể tải dữ liệu lọc");
     }
   };
 
+  /* =============================
+          LOAD ATTENDANCES
+  ============================= */
   const loadAttendances = async () => {
     try {
-      const query = new URLSearchParams(filters).toString();
+      const query = new URLSearchParams(
+        Object.fromEntries(
+          Object.entries(filters).filter(([_, v]) => v !== "" && v !== null)
+        )
+      ).toString();
+
       const res = await api.get(`/admin/attendances?${query}`);
       setAttendances(res.data);
-    } catch {
+    } catch (err) {
       toast.error("Không thể tải danh sách điểm danh");
     }
   };
@@ -55,7 +62,7 @@ export default function AdminAttendanceListPage() {
   }, []);
 
   /* =============================
-          RESET ATTENDANCE
+        HANDLE RESET ATTENDANCE
   ============================= */
   const handleReset = async (id) => {
     if (!window.confirm("Reset buổi điểm danh này?")) return;
@@ -70,7 +77,7 @@ export default function AdminAttendanceListPage() {
   };
 
   /* =============================
-          DELETE ATTENDANCE
+        HANDLE DELETE ATTENDANCE
   ============================= */
   const handleDelete = async (id) => {
     if (!window.confirm("Xóa buổi điểm danh này?")) return;
@@ -85,21 +92,25 @@ export default function AdminAttendanceListPage() {
   };
 
   /* =============================
-            RENDER
+              RENDER
   ============================= */
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Quản lý điểm danh (Admin)</h1>
+      <h1 className="text-2xl font-bold text-gray-800">
+        Quản lý điểm danh (Admin)
+      </h1>
 
-      {/* =============================  
-                FILTER PANEL  
+      {/* =============================
+              FILTER PANEL
       ============================= */}
       <div className="bg-white border rounded-xl p-4 grid grid-cols-1 md:grid-cols-5 gap-4">
 
         {/* Giảng viên */}
         <select
           value={filters.lecturerId}
-          onChange={(e) => setFilters({ ...filters, lecturerId: e.target.value })}
+          onChange={(e) =>
+            setFilters({ ...filters, lecturerId: e.target.value })
+          }
           className="border p-2 rounded-lg"
         >
           <option value="">-- Giảng viên --</option>
@@ -113,7 +124,13 @@ export default function AdminAttendanceListPage() {
         {/* Môn học */}
         <select
           value={filters.courseId}
-          onChange={(e) => setFilters({ ...filters, courseId: e.target.value })}
+          onChange={(e) =>
+            setFilters({
+              ...filters,
+              courseId: e.target.value,
+              classId: "", // reset lớp học phần khi đổi môn
+            })
+          }
           className="border p-2 rounded-lg"
         >
           <option value="">-- Môn học --</option>
@@ -124,18 +141,27 @@ export default function AdminAttendanceListPage() {
           ))}
         </select>
 
-        {/* Lớp học phần */}
+        {/* Lớp học phần — lọc theo môn */}
         <select
           value={filters.classId}
-          onChange={(e) => setFilters({ ...filters, classId: e.target.value })}
+          onChange={(e) =>
+            setFilters({ ...filters, classId: e.target.value })
+          }
           className="border p-2 rounded-lg"
         >
           <option value="">-- Lớp học phần --</option>
-          {classes.map((cl) => (
-            <option key={cl._id} value={cl._id}>
-              {cl.name} ({cl.course?.name})
-            </option>
-          ))}
+
+          {classes
+            .filter(
+              (cl) =>
+                !filters.courseId ||
+                cl.course?._id === filters.courseId
+            )
+            .map((cl) => (
+              <option key={cl._id} value={cl._id}>
+                {cl.name} ({cl.course?.name})
+              </option>
+            ))}
         </select>
 
         {/* From date */}
@@ -163,8 +189,8 @@ export default function AdminAttendanceListPage() {
         </button>
       </div>
 
-      {/* =============================  
-                TABLE  
+      {/* =============================
+                    TABLE
       ============================= */}
       <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
         <table className="w-full text-sm">
@@ -196,6 +222,7 @@ export default function AdminAttendanceListPage() {
                   <td className="px-3 py-2">{a.presentCount}</td>
                   <td className="px-3 py-2">{a.absentCount}</td>
 
+                  {/* QR */}
                   <td className="px-3 py-2">
                     {a.qrLink ? (
                       <img
@@ -208,6 +235,7 @@ export default function AdminAttendanceListPage() {
                     )}
                   </td>
 
+                  {/* ACTIONS */}
                   <td className="px-3 py-2 text-center flex gap-3 justify-center">
 
                     {/* RESET */}
