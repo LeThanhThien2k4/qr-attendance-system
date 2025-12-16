@@ -6,7 +6,6 @@ import mongoose from "mongoose";
 import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
-import enrollmentRoutes from "./routes/enrollments.route.js";
 import adminUserRoutes from "./routes/adminUsers.route.js";
 import adminCoursesRoute from "./routes/adminCourses.route.js";
 import adminAttendancesRoute from "./routes/adminAttendances.route.js";
@@ -47,7 +46,6 @@ mongoose.connection.on("connected", () => {
 // Định nghĩa API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/courses", adminCoursesRoute);
 app.use("/api/admin/attendances", adminAttendancesRoute);
