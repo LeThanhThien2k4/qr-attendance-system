@@ -35,9 +35,11 @@ export default function LecturerAttendancePage() {
 
   const timerRef = useRef(null);
 
-  /* ============================================================
-      CURRENT CLASS
-  ============================================================ */
+  /** NEW STATES **/
+  const [selectedScheduleIndex, setSelectedScheduleIndex] = useState("");
+  const [selectedWeek, setSelectedWeek] = useState("");
+
+  /** CURRENT CLASS **/
   const currentClass = useMemo(
     () => myClasses.find((c) => c._id === selectedClassId) || null,
     [myClasses, selectedClassId]
@@ -65,9 +67,7 @@ export default function LecturerAttendancePage() {
     setSessionEnded(false);
   };
 
-  /* ============================================================
-      LOAD DATA
-  ============================================================ */
+  /** LOAD DATA **/
   const loadMyClasses = async () => {
     try {
       setLoadingClasses(true);
@@ -79,35 +79,45 @@ export default function LecturerAttendancePage() {
       setLoadingClasses(false);
     }
   };
+    const reqIdRef = useRef(0);
+    const loadAttendances = async (classId = "") => {
+      const reqId = ++reqIdRef.current;
 
-  const loadAttendances = async (classId = "") => {
-    try {
-      const res = await api.get("/lecturer", {
-        params: classId ? { classId } : {},
-      });
-      setAttendances(res.data || []);
-    } catch {
-      toast.error("Không thể tải lịch sử điểm danh");
-    }
-  };
+      try {
+        const res = await api.get("/lecturer/attendances", {
+          params: classId ? { classId } : {},
+        });
+
+        // nếu có request mới hơn → bỏ response cũ
+        if (reqId !== reqIdRef.current) return;
+
+        const cleanList = (res.data || [])
+          .filter(att => att.classId && att.classId.code)
+          .filter(att => att.classId.course);
+
+        setAttendances(cleanList);
+      } catch {
+        if (reqId !== reqIdRef.current) return;
+        toast.error("Không thể tải lịch sử điểm danh");
+      }
+    };
+
 
   useEffect(() => {
     loadMyClasses();
-    loadAttendances();
+    loadAttendances("");
   }, []);
 
-  useEffect(() => {
-    if (selectedClassId) {
-      loadAttendances(selectedClassId);
-      resetQRState();
-    } else {
-      resetQRState();
-    }
-  }, [selectedClassId]);
+useEffect(() => {
+  resetQRState();
+  setSelectedScheduleIndex("");
+  setSelectedWeek("");
 
-  /* ============================================================
-      AUTO COUNTDOWN + AUTO REFRESH QR
-  ============================================================ */
+  loadAttendances(selectedClassId || "");
+}, [selectedClassId]);
+
+
+  /** AUTO COUNTDOWN **/
   useEffect(() => {
     if (!expireAt || sessionEnded) {
       stopCountdown();
@@ -128,7 +138,7 @@ export default function LecturerAttendancePage() {
 
       if (diff <= 0) {
         stopCountdown();
-        handleCreateQR(true); // silent refresh
+        handleCreateQR(true);
         return;
       }
 
@@ -142,17 +152,25 @@ export default function LecturerAttendancePage() {
     }, 1000);
 
     return stopCountdown;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expireAt, sessionEnded]);
 
-  /* ============================================================
-      TẠO / REFRESH QR
-  ============================================================ */
+  /** CREATE QR **/
   const handleCreateQR = async (silent = false) => {
     if (!selectedClassId) {
       if (!silent) toast.error("Chọn lớp học phần");
       return;
     }
+
+    if (!selectedScheduleIndex && !silent) {
+      toast.error("Vui lòng chọn buổi học");
+      return;
+    }
+
+    if (!selectedWeek && !silent) {
+      toast.error("Vui lòng chọn tuần học");
+      return;
+    }
+
     if (!hasLocation) {
       if (!silent)
         toast.error("Lớp chưa cập nhật GPS phòng học. Hãy cập nhật trước.");
@@ -160,8 +178,13 @@ export default function LecturerAttendancePage() {
     }
 
     if (!silent) setLoadingQR(true);
+
     try {
-      const res = await api.post("/lecturer", { classId: selectedClassId });
+      const res = await api.post("/lecturer", {
+        classId: selectedClassId,
+        scheduleIndex: Number(selectedScheduleIndex),
+        week: Number(selectedWeek),
+      });
 
       setQrImage(res.data.qrLink || "");
       setExpireAt(res.data.expireAt || null);
@@ -182,13 +205,11 @@ export default function LecturerAttendancePage() {
     }
   };
 
-  /* ============================================================
-      KẾT THÚC PHIÊN
-  ============================================================ */
+  /** END SESSION **/
   const handleEndSession = async () => {
     if (!latestAttendanceId) return toast.error("Chưa có phiên để kết thúc");
 
-    if (!window.confirm("Bạn chắc chắn muốn kết thúc phiên điểm danh?")) return;
+    if (!window.confirm("Kết thúc phiên điểm danh?")) return;
 
     try {
       await api.post("/lecturer/end-session", {
@@ -208,9 +229,7 @@ export default function LecturerAttendancePage() {
     }
   };
 
-  /* ============================================================
-      GPS PHÒNG HỌC
-  ============================================================ */
+  /** SET LOCATION **/
   const handleSetLocation = () => {
     if (!selectedClassId) return toast.error("Chọn lớp học phần");
 
@@ -244,9 +263,7 @@ export default function LecturerAttendancePage() {
     );
   };
 
-  /* ============================================================
-      CHI TIẾT BUỔI ĐIỂM DANH
-  ============================================================ */
+  /** DETAIL **/
   const toggleDetail = async (id) => {
     if (openId === id) {
       setOpenId(null);
@@ -261,9 +278,7 @@ export default function LecturerAttendancePage() {
     }
   };
 
-  /* ============================================================
-      RENDER
-  ============================================================ */
+  /** RENDER **/
   return (
     <div className="space-y-6 p-4">
       <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -272,6 +287,8 @@ export default function LecturerAttendancePage() {
 
       {/* SELECT CLASS + ACTION BUTTONS */}
       <div className="bg-white p-4 rounded-xl shadow border space-y-3">
+        
+        {/* CHỌN LỚP */}
         <div className="flex flex-wrap gap-3 items-center">
           {loadingClasses ? (
             <p>Đang tải lớp học...</p>
@@ -289,11 +306,71 @@ export default function LecturerAttendancePage() {
               ))}
             </select>
           )}
+        </div>
 
-          {/* Tạo / làm mới QR */}
+        {/* HIỂN THỊ LỊCH HỌC + CHỌN BUỔI + CHỌN TUẦN */}
+        {currentClass && currentClass.schedule?.length > 0 && (
+          <div className="bg-gray-50 p-3 rounded-lg border space-y-2">
+            <p className="font-medium text-gray-700">Lịch học:</p>
+
+            {currentClass.schedule.map((sc, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-sm">
+                <span className="w-24 font-medium">Buổi {idx + 1}:</span>
+                <span>
+                  {sc.dayOfWeek} – {sc.startTime} đến {sc.endTime} – Phòng{" "}
+                  {sc.room}
+                </span>
+              </div>
+            ))}
+
+            {/* CHỌN BUỔI + TUẦN (NẰM CÙNG HÀNG) */}
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+
+              {/* Buổi học */}
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">Chọn buổi:</span>
+                <select
+                  value={selectedScheduleIndex}
+                  onChange={(e) => setSelectedScheduleIndex(e.target.value)}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="">-- Buổi --</option>
+                  {currentClass.schedule.map((sc, idx) => (
+                    <option key={idx} value={idx}>
+                      Buổi {idx + 1} – {sc.dayOfWeek} ({sc.startTime})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tuần học */}
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">Tuần:</span>
+                <select
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="">-- Tuần --</option>
+                  {[...Array(10)].map((_, i) => (
+                    <option key={i} value={i + 1}>
+                      Tuần {i + 1}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ACTION BUTTONS */}
+        <div className="flex flex-wrap gap-3 items-center">
+
           <button
             onClick={() => handleCreateQR(false)}
-            disabled={loadingQR || !hasLocation || !selectedClassId}
+            disabled={
+              loadingQR || !hasLocation || !selectedClassId
+            }
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white
               ${
                 !selectedClassId || !hasLocation
@@ -307,17 +384,16 @@ export default function LecturerAttendancePage() {
             {loadingQR ? "Đang tạo..." : "Tạo / làm mới QR"}
           </button>
 
-          {/* Kết thúc phiên */}
           <button
             onClick={handleEndSession}
             disabled={!latestAttendanceId || sessionEnded}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-white 
+            bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             <StopCircle size={18} />
             Kết thúc phiên
           </button>
 
-          {/* Cập nhật GPS */}
           <button
             onClick={handleSetLocation}
             disabled={!selectedClassId || updatingLocation}
@@ -333,6 +409,7 @@ export default function LecturerAttendancePage() {
           </button>
         </div>
 
+        {/* GPS STATUS */}
         {selectedClassId && (
           <div className="text-sm text-gray-700">
             <span className="font-medium">Trạng thái GPS lớp: </span>
@@ -408,12 +485,14 @@ export default function LecturerAttendancePage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-100 text-gray-700">
             <tr>
-              <th className="p-2 text-left">Lớp</th>
+              <th className="p-2 text-left">Mã Lớp</th>
               <th className="p-2 text-left">Môn học</th>
               <th className="p-2 text-left">Ngày</th>
+              <th className="p-2 text-left">Tuần</th>
+              <th className="p-2 text-left">Buổi</th>
               <th className="p-2 text-left">Có mặt</th>
               <th className="p-2 text-left">Vắng</th>
-              <th className="p-2 text-left"></th>
+              <th></th>
             </tr>
           </thead>
 
@@ -427,6 +506,15 @@ export default function LecturerAttendancePage() {
                     <td className="p-2">
                       {new Date(att.date).toLocaleString("vi-VN")}
                     </td>
+
+                    <td className="p-2 text-blue-700 font-semibold">
+                      Tuần {att.slot?.week || "--"}
+                    </td>
+
+                    <td className="p-2">
+                      Buổi {att.slot?.lesson || "--"}
+                    </td>
+
                     <td className="p-2 text-green-600 font-semibold">
                       {att.presentCount}
                     </td>
@@ -448,7 +536,7 @@ export default function LecturerAttendancePage() {
                   </tr>
 
                   <tr>
-                    <td colSpan={6} className="p-0">
+                    <td colSpan={8} className="p-0">
                       <div
                         className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${
                           openId === att._id
@@ -459,7 +547,7 @@ export default function LecturerAttendancePage() {
                         <div className="p-4 bg-gray-50 border-t rounded-b-xl shadow-sm">
                           <AttendanceDetail
                             attendanceId={att._id}
-                            detail={detailData}
+                            detail={openId === att._id ? detailData : null}
                             reload={() => loadAttendances(selectedClassId)}
                           />
                         </div>
@@ -470,7 +558,7 @@ export default function LecturerAttendancePage() {
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="p-4 text-center text-gray-500">
+                <td colSpan={8} className="text-center py-6 text-gray-500 italic">
                   Chưa có buổi điểm danh nào
                 </td>
               </tr>

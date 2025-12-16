@@ -28,27 +28,40 @@ const ATT_COLORS = {
 };
 
 export default function AdminDashboardPage() {
+  const CURRENT_YEAR = new Date().getFullYear();
+  const [year, setYear] = useState(CURRENT_YEAR);
+
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const { data } = await api.get("/admin/dashboard");
-        if (!alive) return;
-        setStats(data);
-      } catch (e) {
-        setErr(e?.response?.data?.message || e.message);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+useEffect(() => {
+  let alive = true;
+
+  (async () => {
+    try {
+      setLoading(true);
+      setErr("");
+
+      const { data } = await api.get("/admin/dashboard", {
+        params: { year },
+      });
+
+      if (!alive) return;
+      setStats(data);
+    } catch (e) {
+      if (!alive) return;
+      setErr(e?.response?.data?.message || e.message);
+    } finally {
+      if (alive) setLoading(false);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, [year]); // ✅ BẮT BUỘC
+
 
   /* ----------- Pie: User Role ----------- */
   const roleSeries = useMemo(() => {
@@ -62,13 +75,25 @@ export default function AdminDashboardPage() {
 
   /* ----------- Monthly Line Chart ----------- */
   const monthlySeries = useMemo(() => {
-    if (!stats?.attendanceMonthly) return [];
-    return stats.attendanceMonthly.map((m) => ({
-      month: `T${m._id}`,
-      present: m.present,
-      absent: m.absent,
+    const base = Array.from({ length: 12 }, (_, i) => ({
+      month: `T${i + 1}`,
+      present: 0,
+      absent: 0,
     }));
+
+    if (!stats?.attendanceMonthly) return base;
+
+    stats.attendanceMonthly.forEach((m) => {
+      const idx = m._id - 1; // _id = month number
+      if (idx >= 0 && idx < 12) {
+        base[idx].present = m.present;
+        base[idx].absent = m.absent;
+      }
+    });
+
+    return base;
   }, [stats]);
+
 
   /* ----------- Attendance By Class ----------- */
   const classSeries = useMemo(() => {
@@ -153,18 +178,49 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* ================= FULL WIDTH MONTHLY ================= */}
-      <ChartCardWide title="Chuyên cần theo tháng">
+      <ChartCardWide title={`Chuyên cần theo tháng - Năm ${year}`}>
+        <div className="flex justify-end mb-3">
+          <select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className="border rounded-lg px-3 py-1 text-sm"
+          >
+            {[CURRENT_YEAR+1,CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2].map((y) => (
+              <option key={y} value={y}>
+                Năm {y}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <ResponsiveContainer width="100%" height={350}>
           <LineChart data={monthlySeries}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" />
             <YAxis allowDecimals={false} />
             <RTooltip />
-            <Line type="monotone" dataKey="present" stroke="#22C55E" strokeWidth={2} />
-            <Line type="monotone" dataKey="absent" stroke="#EF4444" strokeWidth={2} />
+
+            <Line
+              type="monotone"
+              dataKey="present"
+              stroke="#22C55E"
+              strokeWidth={3}
+              dot={{ r: 4 }}
+              activeDot={{ r: 6 }}
+            />
+
+            <Line
+              type="monotone"
+              dataKey="absent"
+              stroke="#EF4444"
+              strokeWidth={3}
+              dot={{ r: 4 }}
+              activeDot={{ r: 6 }}
+            />
           </LineChart>
         </ResponsiveContainer>
       </ChartCardWide>
+
 
       {/* ================= FULL WIDTH CLASS BAR ================= */}
       <ChartCardWide title="Chuyên cần theo lớp">

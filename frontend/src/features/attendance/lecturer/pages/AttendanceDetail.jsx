@@ -8,25 +8,27 @@ export default function AttendanceDetail({ attendanceId, detail, reload }) {
 
   useEffect(() => {
     if (detail) {
-      setPresent(detail.present || []);
-      setAbsent(detail.absent || []);
+      setPresent(detail.studentsPresent || []);
+      setAbsent(detail.studentsAbsent || []);
     }
   }, [detail]);
 
   const toggle = (student, toPresent) => {
+    const id = student.studentId || student._id;
+
     if (toPresent) {
       setPresent([...present, student]);
-      setAbsent(absent.filter((s) => s._id !== student._id));
+      setAbsent(absent.filter((s) => (s.studentId || s._id) !== id));
     } else {
       setAbsent([...absent, student]);
-      setPresent(present.filter((s) => s._id !== student._id));
+      setPresent(present.filter((s) => (s.studentId || s._id) !== id));
     }
   };
 
   const save = async () => {
     try {
       await api.patch(`/lecturer/attendance/${attendanceId}/manual-update`, {
-        presentIds: present.map((s) => s._id),
+        presentIds: present.map((s) => s.studentId || s._id),
       });
 
       toast.success("Đã cập nhật điểm danh!");
@@ -50,17 +52,16 @@ export default function AttendanceDetail({ attendanceId, detail, reload }) {
             <p className="text-gray-500 text-sm">Không có sinh viên nào</p>
           )}
 
-            {present.map((s) => (
-            <label key={s._id} className="flex items-center gap-2 mb-1">
-                <input
+          {present.map((s) => (
+            <label key={s.studentId || s._id} className="flex items-center gap-2 mb-1">
+              <input
                 type="checkbox"
                 checked
                 onChange={() => toggle(s, false)}
-                />
-                {s.name}
+              />
+              {s.name}
             </label>
-            ))}
-
+          ))}
         </div>
 
         {/* VẮNG */}
@@ -71,17 +72,16 @@ export default function AttendanceDetail({ attendanceId, detail, reload }) {
             <p className="text-gray-500 text-sm">Không có sinh viên nào</p>
           )}
 
-            {absent.map((s) => (
-            <label key={s._id} className="flex items-center gap-2 mb-1">
-                <input
+          {absent.map((s) => (
+            <label key={s.studentId || s._id} className="flex items-center gap-2 mb-1">
+              <input
                 type="checkbox"
                 checked={false}
                 onChange={() => toggle(s, true)}
-                />
-                {s.name}
+              />
+              {s.name}
             </label>
-            ))}
-
+          ))}
         </div>
 
       </div>

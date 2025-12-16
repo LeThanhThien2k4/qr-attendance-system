@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Trash2, Edit3, Users } from "lucide-react";
+import { Trash2, Edit3, Users, CalendarPlus, X } from "lucide-react";
 import api from "../../../lib/axios";
 import toast from "react-hot-toast";
 
@@ -32,22 +32,30 @@ export default function AdminClassListPage() {
   const [students, setStudents] = useState([]);
 
   const [editingId, setEditingId] = useState(null);
+
+  /* ============================================================
+     📌 FORM CHÍNH (CÓ THÊM SCHEDULE)
+  ============================================================ */
   const [form, setForm] = useState({
     code: "",
     name: "",
     course: "",
     lecturer: "",
     semester: getDefaultSemester(),
+    schedule: [], // ⭐ NEW
+  });
+
+  // Form nhập lịch học tạm thời
+  const [scheduleTemp, setScheduleTemp] = useState({
+    dayOfWeek: "",
+    startTime: "",
+    endTime: "",
+    lesson: "",
+    room: "",
+    weeks: "",
   });
 
   const semesters = generateSemesters();
-
-  /* ============================================================
-     📌 MODAL QUẢN LÝ SINH VIÊN
-  ============================================================ */
-  const [showStudentModal, setShowStudentModal] = useState(false);
-  const [currentClass, setCurrentClass] = useState(null);
-  const [classStudents, setClassStudents] = useState([]);
 
   /* ============================================================
      📌 LOAD DATA
@@ -98,7 +106,57 @@ export default function AdminClassListPage() {
       course: "",
       lecturer: "",
       semester: getDefaultSemester(),
+      schedule: [],
     });
+
+  /* ============================================================
+     📌 XỬ LÝ THÊM LỊCH HỌC
+  ============================================================ */
+  const addScheduleToForm = () => {
+    if (
+      !scheduleTemp.dayOfWeek ||
+      !scheduleTemp.startTime ||
+      !scheduleTemp.endTime ||
+      !scheduleTemp.lesson ||
+      !scheduleTemp.room
+    ) {
+      return toast.error("Vui lòng nhập đầy đủ thông tin lịch học");
+    }
+
+    const weeksParsed =
+      scheduleTemp.weeks
+        ?.split(",")
+        .map((w) => Number(w.trim()))
+        .filter((w) => !isNaN(w)) || [];
+
+    const newSchedule = {
+      dayOfWeek: scheduleTemp.dayOfWeek,
+      startTime: scheduleTemp.startTime,
+      endTime: scheduleTemp.endTime,
+      lesson: scheduleTemp.lesson,
+      room: scheduleTemp.room,
+      weeks: weeksParsed,
+    };
+
+    setForm({ ...form, schedule: [...form.schedule, newSchedule] });
+
+    // Clear input
+    setScheduleTemp({
+      dayOfWeek: "",
+      startTime: "",
+      endTime: "",
+      lesson: "",
+      room: "",
+      weeks: "",
+    });
+  };
+
+  const removeSchedule = (index) => {
+    setForm({
+      ...form,
+      schedule: form.schedule.filter((_, i) => i !== index),
+    });
+  };
 
   /* ============================================================
      📌 SUBMIT
@@ -137,6 +195,7 @@ export default function AdminClassListPage() {
       course: c.course?._id,
       lecturer: c.lecturer?._id,
       semester: c.semester,
+      schedule: c.schedule || [],
     });
   };
 
@@ -157,6 +216,10 @@ export default function AdminClassListPage() {
   /* ============================================================
      📌 QUẢN LÝ SINH VIÊN
   ============================================================ */
+  const [showStudentModal, setShowStudentModal] = useState(false);
+  const [currentClass, setCurrentClass] = useState(null);
+  const [classStudents, setClassStudents] = useState([]);
+
   const openStudentModal = async (cls) => {
     setCurrentClass(cls);
 
@@ -194,7 +257,7 @@ export default function AdminClassListPage() {
   };
 
   /* ============================================================
-     📌 RENDER
+     📌 UI RENDER
   ============================================================ */
   return (
     <div className="space-y-6">
@@ -205,66 +268,179 @@ export default function AdminClassListPage() {
       {/* FORM */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-4 rounded-lg shadow border grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3"
+        className="bg-white p-4 rounded-lg shadow border space-y-4"
       >
-        <input
-          placeholder="Mã lớp (tùy chọn)"
-          value={form.code}
-          onChange={(e) => setForm({ ...form, code: e.target.value })}
-          className="border rounded px-3 py-2"
-        />
+        {/* FORM GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+          <input
+            placeholder="Mã lớp (tùy chọn)"
+            value={form.code}
+            onChange={(e) => setForm({ ...form, code: e.target.value })}
+            className="border rounded px-3 py-2"
+          />
 
-        <input
-          required
-          placeholder="Tên lớp (VD: Nhóm 1)"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="border rounded px-3 py-2"
-        />
+          <input
+            required
+            placeholder="Tên lớp (VD: Nhóm 1)"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="border rounded px-3 py-2"
+          />
 
-        <select
-          required
-          value={form.course}
-          onChange={(e) => setForm({ ...form, course: e.target.value })}
-          className="border rounded px-3 py-2"
-        >
-          <option value="">Chọn môn học</option>
-          {courses.map((c) => (
-            <option key={c._id} value={c._id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          <select
+            required
+            value={form.course}
+            onChange={(e) => setForm({ ...form, course: e.target.value })}
+            className="border rounded px-3 py-2"
+          >
+            <option value="">Chọn môn học</option>
+            {courses.map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
 
-        <select
-          required
-          value={form.lecturer}
-          onChange={(e) => setForm({ ...form, lecturer: e.target.value })}
-          className="border rounded px-3 py-2"
-        >
-          <option value="">Chọn giảng viên</option>
-          {lecturers.map((l) => (
-            <option key={l._id} value={l._id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+          <select
+            required
+            value={form.lecturer}
+            onChange={(e) => setForm({ ...form, lecturer: e.target.value })}
+            className="border rounded px-3 py-2"
+          >
+            <option value="">Chọn giảng viên</option>
+            {lecturers.map((l) => (
+              <option key={l._id} value={l._id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
 
-        <select
-          required
-          value={form.semester}
-          onChange={(e) => setForm({ ...form, semester: e.target.value })}
-          className="border rounded px-3 py-2"
-        >
-          <option value="">Chọn học kỳ</option>
-          {semesters.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          <select
+            required
+            value={form.semester}
+            onChange={(e) => setForm({ ...form, semester: e.target.value })}
+            className="border rounded px-3 py-2"
+          >
+            <option value="">Chọn học kỳ</option>
+            {semesters.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <button className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700 col-span-full">
+        {/* ============================================================
+           📌 SCHEDULE BUILDER
+        ============================================================ */}
+        <div className="border rounded-lg p-4 space-y-4 bg-gray-50">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <CalendarPlus size={20} /> Lịch học của lớp
+          </h2>
+
+          {/* INPUT */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+            <select
+              value={scheduleTemp.dayOfWeek}
+              onChange={(e) =>
+                setScheduleTemp({ ...scheduleTemp, dayOfWeek: e.target.value })
+              }
+              className="border rounded px-3 py-2"
+            >
+              <option value="">Thứ</option>
+              <option value="Monday">Thứ 2</option>
+              <option value="Tuesday">Thứ 3</option>
+              <option value="Wednesday">Thứ 4</option>
+              <option value="Thursday">Thứ 5</option>
+              <option value="Friday">Thứ 6</option>
+              <option value="Saturday">Thứ 7</option>
+              <option value="Sunday">Chủ nhật</option>
+            </select>
+
+            <input
+              type="time"
+              value={scheduleTemp.startTime}
+              onChange={(e) =>
+                setScheduleTemp({ ...scheduleTemp, startTime: e.target.value })
+              }
+              className="border rounded px-3 py-2"
+            />
+
+            <input
+              type="time"
+              value={scheduleTemp.endTime}
+              onChange={(e) =>
+                setScheduleTemp({ ...scheduleTemp, endTime: e.target.value })
+              }
+              className="border rounded px-3 py-2"
+            />
+
+            <input
+              placeholder="Tiết (VD: 1-3)"
+              value={scheduleTemp.lesson}
+              onChange={(e) =>
+                setScheduleTemp({ ...scheduleTemp, lesson: e.target.value })
+              }
+              className="border rounded px-3 py-2"
+            />
+
+            <input
+              placeholder="Phòng học"
+              value={scheduleTemp.room}
+              onChange={(e) =>
+                setScheduleTemp({ ...scheduleTemp, room: e.target.value })
+              }
+              className="border rounded px-3 py-2"
+            />
+
+            <input
+              placeholder="Tuần học (VD: 1,2,3)"
+              value={scheduleTemp.weeks}
+              onChange={(e) =>
+                setScheduleTemp({ ...scheduleTemp, weeks: e.target.value })
+              }
+              className="border rounded px-3 py-2"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={addScheduleToForm}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Thêm buổi học
+          </button>
+
+          {/* DANH SÁCH SCHEDULE */}
+          <div className="space-y-2">
+            {form.schedule.map((sch, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between border rounded p-3 bg-white"
+              >
+                <div>
+                  <p className="font-semibold text-gray-700">
+                    {sch.dayOfWeek} – {sch.startTime} → {sch.endTime}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Tiết: {sch.lesson} • Phòng: {sch.room} • Tuần:{" "}
+                    {sch.weeks.join(", ") || "—"}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => removeSchedule(idx)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SUBMIT */}
+        <button className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700 w-full">
           {editingId ? "Cập nhật lớp học" : "Thêm mới lớp học"}
         </button>
       </form>
@@ -278,10 +454,7 @@ export default function AdminClassListPage() {
               <th className="px-3 py-2 text-left">Tên lớp</th>
               <th className="px-3 py-2 text-left">Môn học</th>
               <th className="px-3 py-2 text-left">Giảng viên</th>
-
-              {/* 🔥 CỘT SỐ LƯỢNG SINH VIÊN */}
               <th className="px-3 py-2 text-center">Số SV</th>
-
               <th className="px-3 py-2 text-left">Học kỳ</th>
               <th className="px-3 py-2 text-center">Hành động</th>
             </tr>
@@ -296,7 +469,6 @@ export default function AdminClassListPage() {
                   <td className="px-3 py-2">{c.course?.name}</td>
                   <td className="px-3 py-2">{c.lecturer?.name}</td>
 
-                  {/* Hiển thị số lượng sinh viên */}
                   <td className="px-3 py-2 text-center font-semibold text-blue-700">
                     {c.students?.length || 0}
                   </td>
@@ -329,7 +501,10 @@ export default function AdminClassListPage() {
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="text-center py-6 text-gray-500 italic">
+                <td
+                  colSpan="7"
+                  className="text-center py-6 text-gray-500 italic"
+                >
                   Chưa có lớp học phần nào
                 </td>
               </tr>
@@ -338,7 +513,9 @@ export default function AdminClassListPage() {
         </table>
       </div>
 
-      {/* MODAL */}
+      {/* =======================================
+          MODAL QUẢN LÝ SINH VIÊN 
+      ======================================== */}
       {showStudentModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white w-[750px] rounded-lg shadow-lg p-6">
