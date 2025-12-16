@@ -1,147 +1,119 @@
 import Class from "../models/class.model.js";
 import Course from "../models/course.model.js";
 import User from "../models/user.model.js";
-import { getCurrentSemester } from "../utils/semesterHelper.js";
-
+import Attendance from "../models/attendance.model.js";
 /* ============================================================
-   🟩 TẠO LỚP HỌC – BẢN TỐT NHẤT (ổn định + đầy đủ validate)
+   🟩 TẠO LỚP HỌC + NHẬN LUÔN SCHEDULE
 ============================================================ */
 export const createClass = async (req, res) => {
   try {
-    const { code, name, course, lecturer, semester } = req.body;
+    const { code, name, course, lecturer, semester, schedule } = req.body;
 
-    // ===========================
-    // VALIDATE RÕ RÀNG, TRẢ MESSAGE GỌN
-    // ===========================
-    if (!code || !code.trim()) {
-      return res.status(400).json({ message: "Vui lòng nhập mã lớp học" });
-    }
+    // ==== Validate cơ bản ====
+    if (!code?.trim()) return res.status(400).json({ message: "Vui lòng nhập mã lớp" });
+    if (!name?.trim()) return res.status(400).json({ message: "Vui lòng nhập tên lớp" });
+    if (!course) return res.status(400).json({ message: "Vui lòng chọn môn học" });
+    if (!lecturer) return res.status(400).json({ message: "Vui lòng chọn giảng viên" });
+    if (!semester?.trim()) return res.status(400).json({ message: "Vui lòng nhập học kỳ" });
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({ message: "Vui lòng nhập tên lớp" });
-    }
-
-    if (!course) {
-      return res.status(400).json({ message: "Vui lòng chọn môn học" });
-    }
-
-    if (!lecturer) {
-      return res.status(400).json({ message: "Vui lòng chọn giảng viên" });
-    }
-
-    if (!semester || !semester.trim()) {
-      return res.status(400).json({ message: "Vui lòng nhập học kỳ" });
-    }
-
-    // ===========================
-    // KIỂM TRA GIẢNG VIÊN
-    // ===========================
+    // ==== Check giảng viên ====
     const gv = await User.findById(lecturer);
     if (!gv || gv.role !== "lecturer") {
       return res.status(400).json({ message: "Giảng viên không hợp lệ" });
     }
 
-    // ===========================
-    // KIỂM TRA MÔN HỌC
-    // ===========================
+    // ==== Check môn học ====
     const mh = await Course.findById(course);
-    if (!mh) {
+    if (!mh)
       return res.status(400).json({ message: "Môn học không tồn tại" });
+
+    // ==== Format schedule nếu có ====
+    let formattedSchedule = [];
+    if (Array.isArray(schedule)) {
+      formattedSchedule = schedule.map((item) => ({
+        dayOfWeek: item.dayOfWeek,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        lesson: item.lesson,
+        room: item.room,
+        weeks: item.weeks || [],
+      }));
     }
 
-    // ===========================
-    // TẠO LỚP
-    // ===========================
+    // ==== Tạo lớp học phần ====
     const newClass = await Class.create({
       code: code.trim(),
       name: name.trim(),
       course,
       lecturer,
       semester: semester.trim(),
+      schedule: formattedSchedule,
     });
 
     return res.status(201).json({
-      message: "Tạo lớp học thành công",
+      message: "Tạo lớp học phần thành công",
       data: newClass,
     });
   } catch (err) {
-    // ======================================================
-    // XỬ LÝ LỖI DUPLICATE KEY
-    // ======================================================
+    // Lỗi duplicate key
     if (err.code === 11000) {
-      const dupFields = Object.keys(err.keyPattern || {});
-
-      if (dupFields.includes("code")) {
-        return res.status(400).json({
-          message: "Mã lớp đã được sử dụng, vui lòng nhập mã khác",
-        });
+      if (err.keyPattern?.code) {
+        return res.status(400).json({ message: "Mã lớp đã tồn tại" });
       }
-
-      // Trùng tổ hợp (name + course + semester)
-      if (
-        dupFields.includes("name") ||
-        dupFields.includes("course") ||
-        dupFields.includes("semester")
-      ) {
-        return res.status(400).json({
-          message: "Lớp học phần này đã tồn tại trong học kỳ này",
-        });
-      }
-
-      return res.status(400).json({
-        message: "Dữ liệu bị trùng lặp",
-      });
+      return res.status(400).json({ message: "Lớp học phần này đã tồn tại" });
     }
 
-    // ======================================================
-    // XỬ LÝ LỖI VALIDATION / CAST / KHÁC
-    // ======================================================
-    if (err.name === "ValidationError") {
-      return res.status(400).json({ message: "Dữ liệu nhập không hợp lệ" });
-    }
-
-    if (err.name === "CastError") {
-      return res.status(400).json({ message: "ID không hợp lệ" });
-    }
-
-    // Lỗi còn lại → trả gọn gàng, KHÔNG LOG DÀI DÒNG
     console.error("❌ CREATE CLASS ERROR:", err.message);
-
-    return res.status(500).json({
-      message: "Không thể tạo lớp học, vui lòng thử lại",
-    });
+    return res.status(500).json({ message: "Không thể tạo lớp học phần" });
   }
 };
 
 
+
 /* ============================================================
-   🟨 LẤY DANH SÁCH TẤT CẢ LỚP
+   🟨 LẤY DANH SÁCH LỚP
 ============================================================ */
 export const getClasses = async (req, res) => {
   try {
-    const list = await Class.find()
-      .populate("course", "name code")
+    let classes = await Class.find()
+      .populate("course", "name")
       .populate("lecturer", "name email")
-      .sort({ createdAt: -1 });
+      .populate("students", "name email")  // populate để kiểm tra student còn tồn tại
+      .lean();
 
-    res.json(list);
+    // 🔥 Lọc student NULL (đã bị xoá khỏi User DB)
+    classes = classes.map(c => {
+      const cleanStudents = (c.students || []).filter(s => s !== null);
+
+      return {
+        ...c,
+        students: cleanStudents,           // FE sẽ nhận đúng số lượng
+        studentCount: cleanStudents.length // nếu bạn muốn dùng field này
+      };
+    });
+
+    return res.json(classes);
   } catch (err) {
-    console.error("❌ GET CLASSES ERROR:", err);
-    res.status(500).json({ message: "Không thể tải danh sách lớp học" });
+    console.error("GET CLASSES ERROR:", err);
+    res.status(500).json({ message: "Lỗi server" });
   }
 };
 
+
+
 /* ============================================================
-   🟨 LẤY THÔNG TIN 1 LỚP
+   🟨 LẤY 1 LỚP THEO ID
 ============================================================ */
 export const getClassById = async (req, res) => {
   try {
     const { id } = req.params;
+
     const cls = await Class.findById(id)
       .populate("course", "name code")
       .populate("lecturer", "name email");
 
-    if (!cls) return res.status(404).json({ message: "Không tìm thấy lớp học" });
+    if (!cls)
+      return res.status(404).json({ message: "Không tìm thấy lớp học" });
 
     res.json(cls);
   } catch (err) {
@@ -150,65 +122,91 @@ export const getClassById = async (req, res) => {
   }
 };
 
+
+
 /* ============================================================
-   🟦 CẬP NHẬT LỚP HỌC
+   🟦 CẬP NHẬT LỚP + UPDATE SCHEDULE LUÔN
 ============================================================ */
 export const updateClass = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, course, lecturer, semester } = req.body;
+    const { code, name, course, lecturer, semester, schedule } = req.body;
 
     const cls = await Class.findById(id);
-    if (!cls) return res.status(404).json({ message: "Không tìm thấy lớp học" });
+    if (!cls)
+      return res.status(404).json({ message: "Không tìm thấy lớp học" });
 
-    // Kiểm tra trùng mã lớp khác id hiện tại
+    // Check duplicate code
     if (code) {
       const existed = await Class.findOne({ code, _id: { $ne: id } });
       if (existed)
-        return res.status(400).json({
-          message: "Mã lớp đã được sử dụng, vui lòng nhập mã khác",
-        });
+        return res.status(400).json({ message: "Mã lớp đã tồn tại" });
     }
 
+    // Update fields
     cls.code = code || cls.code;
     cls.name = name || cls.name;
     cls.course = course || cls.course;
     cls.lecturer = lecturer || cls.lecturer;
     cls.semester = semester || cls.semester;
 
+    // ==== Update schedule nếu có ====
+    if (Array.isArray(schedule)) {
+      cls.schedule = schedule.map((item) => ({
+        dayOfWeek: item.dayOfWeek,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        lesson: item.lesson,
+        room: item.room,
+        weeks: item.weeks || [],
+      }));
+    }
+
     await cls.save();
-    res.json({ message: "Cập nhật lớp học thành công", data: cls });
+
+    res.json({
+      message: "Cập nhật lớp học phần thành công",
+      data: cls,
+    });
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(400).json({
-        message: "Lớp học phần này đã tồn tại trong học kỳ này",
-      });
+      return res.status(400).json({ message: "Lớp học phần đã tồn tại" });
     }
 
     console.error("❌ UPDATE CLASS ERROR:", err);
-    res.status(500).json({ message: "Lỗi khi cập nhật lớp học" });
+    res.status(500).json({ message: "Lỗi cập nhật lớp học phần" });
   }
 };
 
+
+
 /* ============================================================
-   🟥 XÓA LỚP HỌC
+   🟥 XOÁ LỚP
 ============================================================ */
 export const deleteClass = async (req, res) => {
   try {
     const { id } = req.params;
+
     const deleted = await Class.findByIdAndDelete(id);
     if (!deleted)
       return res.status(404).json({ message: "Không tìm thấy lớp học" });
 
-    res.json({ message: "Đã xóa lớp học" });
+    // 🔥 XÓA TOÀN BỘ ATTENDANCE CỦA LỚP
+    await Attendance.deleteMany({ classId: id });
+
+    return res.json({
+      message: "Đã xoá lớp học và toàn bộ lịch sử điểm danh liên quan",
+    });
   } catch (err) {
     console.error("❌ DELETE CLASS ERROR:", err);
     res.status(500).json({ message: "Lỗi khi xóa lớp học" });
   }
 };
 
+
+
 /* ============================================================
-   ➕ THÊM SINH VIÊN VÀO LỚP HỌC PHẦN
+   ➕ THÊM SINH VIÊN VÀO LỚP
 ============================================================ */
 export const addStudentToClass = async (req, res) => {
   try {
@@ -223,23 +221,23 @@ export const addStudentToClass = async (req, res) => {
       return res.status(400).json({ message: "Sinh viên không hợp lệ" });
     }
 
+    if (!cls.students) cls.students = [];
+
     if (cls.students.includes(studentId)) {
       return res.status(400).json({ message: "Sinh viên đã có trong lớp" });
     }
 
-   // ✅ Dùng addToSet của Mongoose
-if (!cls.students) cls.students = [];
-
-cls.students.addToSet(studentId); // chỉ add nếu chưa tồn tại
-await cls.save();
-
+    cls.students.addToSet(studentId);
+    await cls.save();
 
     res.json({ message: "Thêm sinh viên thành công", students: cls.students });
   } catch (err) {
-    console.error("❌ addStudentToClass:", err);
-    res.status(500).json({ message: "Lỗi khi thêm sinh viên" });
+    console.error("❌ ADD STUDENT ERROR:", err);
+    res.status(500).json({ message: "Không thể thêm sinh viên" });
   }
 };
+
+
 
 /* ============================================================
    ➖ XOÁ SINH VIÊN KHỎI LỚP
@@ -249,7 +247,8 @@ export const removeStudentFromClass = async (req, res) => {
     const { classId, studentId } = req.params;
 
     const cls = await Class.findById(classId);
-    if (!cls) return res.status(404).json({ message: "Không tìm thấy lớp" });
+    if (!cls)
+      return res.status(404).json({ message: "Không tìm thấy lớp" });
 
     cls.students = cls.students.filter(
       (id) => id.toString() !== studentId.toString()
@@ -259,11 +258,16 @@ export const removeStudentFromClass = async (req, res) => {
 
     res.json({ message: "Đã xoá sinh viên", students: cls.students });
   } catch (err) {
-    console.error("❌ removeStudentFromClass:", err);
-    res.status(500).json({ message: "Lỗi khi xoá sinh viên" });
+    console.error("❌ REMOVE STUDENT ERROR:", err);
+    res.status(500).json({ message: "Không thể xoá sinh viên" });
   }
 };
 
+
+
+/* ============================================================
+   📌 LẤY DANH SÁCH SINH VIÊN TRONG LỚP
+============================================================ */
 export const getStudentsInClass = async (req, res) => {
   try {
     const { classId } = req.params;
@@ -273,10 +277,12 @@ export const getStudentsInClass = async (req, res) => {
       "name email code"
     );
 
-    if (!cls) return res.status(404).json({ message: "Không tìm thấy lớp" });
+    if (!cls)
+      return res.status(404).json({ message: "Không tìm thấy lớp" });
 
     res.json(cls.students);
   } catch (err) {
-    res.status(500).json({ message: "Lỗi khi tải danh sách sinh viên" });
+    console.error("❌ GET STUDENTS ERROR:", err);
+    res.status(500).json({ message: "Không thể tải danh sách sinh viên" });
   }
 };

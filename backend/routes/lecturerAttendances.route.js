@@ -19,7 +19,7 @@ router.use(verifyToken, requireRole("lecturer"));
 router.get("/classes", lecturerGetMyClasses);
 
 // ⭐ LỊCH SỬ ĐIỂM DANH
-router.get("/", lecturerGetAttendances);
+router.get("/attendances", lecturerGetAttendances);
 
 // ⭐ TẠO QR
 router.post("/", lecturerCreateAttendance);

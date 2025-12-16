@@ -3,16 +3,29 @@ import Attendance from "../models/attendance.model.js";
 import Class from "../models/class.model.js";
 
 /* ====================================================================
-   📌 ADMIN DASHBOARD — FIXED VERSION
-   - Chỉ tính điểm danh của giảng viên hiện tại của lớp
-   - Không cộng dồn buổi cũ của giảng viên trước đó
-   - Không sai số Top Vắng Nhất
-   - Không sai Summary
+   📊 ADMIN DASHBOARD CONTROLLER (PRODUCTION)
+   - Filter theo năm (?year=)
+   - Không gộp dữ liệu nhiều năm
+   - Thống kê toàn hệ thống (Admin)
 ==================================================================== */
 export const getAdminDashboardStats = async (req, res) => {
   try {
-    /* ----------------- BASE STAGES ----------------- */
+    /* ===================== 0. YEAR FILTER ===================== */
+    const year = Number(req.query.year) || new Date().getFullYear();
+
+    const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
+    const endDate = new Date(`${year + 1}-01-01T00:00:00.000Z`);
+
+    /* ===================== 1. BASE STAGES ===================== */
     const baseStages = [
+      {
+        $match: {
+          date: {
+            $gte: startDate,
+            $lt: endDate,
+          },
+        },
+      },
       {
         $lookup: {
           from: "classes",
@@ -22,27 +35,21 @@ export const getAdminDashboardStats = async (req, res) => {
         },
       },
       { $unwind: "$classInfo" },
-
-      // Chỉ tính attendance mà lecturerId = lecturer hiện tại
-      {
-        $match: {
-          $expr: { $eq: ["$lecturerId", "$classInfo.lecturer"] },
-        },
-      },
     ];
 
-    /* =======================================================
-       1. Tổng user + phân loại theo role
-    ======================================================= */
+    /* ===========================================================
+       2. USERS STATS
+    =========================================================== */
     const totalUsers = await User.countDocuments();
 
     const userByRole = await User.aggregate([
       { $group: { _id: "$role", count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
     ]);
 
-    /* =======================================================
-       2. Thống kê theo tháng
-    ======================================================= */
+    /* ===========================================================
+       3. ATTENDANCE BY MONTH (12 MONTHS)
+    =========================================================== */
     const attendanceMonthly = await Attendance.aggregate([
       ...baseStages,
       {
@@ -55,9 +62,9 @@ export const getAdminDashboardStats = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    /* =======================================================
-       3. Thống kê theo lớp
-    ======================================================= */
+    /* ===========================================================
+       4. ATTENDANCE BY CLASS
+    =========================================================== */
     const attendanceByClass = await Attendance.aggregate([
       ...baseStages,
       {
@@ -78,9 +85,9 @@ export const getAdminDashboardStats = async (req, res) => {
       { $sort: { className: 1 } },
     ]);
 
-    /* =======================================================
-       4. Summary (Tổng vắng / tổng có mặt)
-    ======================================================= */
+    /* ===========================================================
+       5. ATTENDANCE SUMMARY
+    =========================================================== */
     const summaryRaw = await Attendance.aggregate([
       ...baseStages,
       {
@@ -97,9 +104,9 @@ export const getAdminDashboardStats = async (req, res) => {
         ? summaryRaw[0]
         : { present: 0, absent: 0 };
 
-    /* =======================================================
-       5. Top Sinh viên vắng nhiều nhất
-    ======================================================= */
+    /* ===========================================================
+       6. TOP ABSENT STUDENTS
+    =========================================================== */
     const topAbsentStudents = await Attendance.aggregate([
       ...baseStages,
       { $unwind: "$studentsAbsent" },
@@ -111,11 +118,10 @@ export const getAdminDashboardStats = async (req, res) => {
           classes: { $addToSet: "$classId" },
         },
       },
-
       { $sort: { absentCount: -1 } },
       { $limit: 10 },
 
-      // Join User
+      // Join student
       {
         $lookup: {
           from: "users",
@@ -126,7 +132,7 @@ export const getAdminDashboardStats = async (req, res) => {
       },
       { $unwind: "$student" },
 
-      // Join Class
+      // Join class
       {
         $lookup: {
           from: "classes",
@@ -144,7 +150,7 @@ export const getAdminDashboardStats = async (req, res) => {
             $cond: [
               { $gt: [{ $size: "$cls" }, 0] },
               { $arrayElemAt: ["$cls.code", 0] },
-              "-"
+              "-",
             ],
           },
           absentCount: 1,
@@ -152,10 +158,11 @@ export const getAdminDashboardStats = async (req, res) => {
       },
     ]);
 
-    /* =======================================================
-       📌 SEND FINAL RESPONSE
-    ======================================================= */
+    /* ===========================================================
+       7. SEND RESPONSE
+    =========================================================== */
     res.json({
+      year,
       totalUsers,
       userByRole,
       attendanceMonthly,
@@ -165,6 +172,8 @@ export const getAdminDashboardStats = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Admin Dashboard Error:", err);
-    res.status(500).json({ message: "Lỗi khi tải thống kê Dashboard" });
+    res.status(500).json({
+      message: "Lỗi khi tải dữ liệu Dashboard Admin",
+    });
   }
 };

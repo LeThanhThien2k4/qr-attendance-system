@@ -30,7 +30,9 @@ const classSchema = new mongoose.Schema(
         dayOfWeek: String,
         startTime: String,
         endTime: String,
+        lesson: String,  // 1–3, 4–6, optional
         room: String,
+        weeks: [Number], // [1,2,3,...]
       },
     ],
 

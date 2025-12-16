@@ -1,87 +1,243 @@
+import mongoose from "mongoose";
 import Attendance from "../models/attendance.model.js";
 import Class from "../models/class.model.js";
 
-// === Lấy danh sách điểm danh (có filter) ===
+/* =======================
+   Utils
+======================= */
+const toObjectId = (id) => {
+  if (!id) return null;
+  return mongoose.Types.ObjectId.isValid(id)
+    ? new mongoose.Types.ObjectId(id)
+    : null;
+};
+
+/* ===========================================================
+   GET /admin/attendances
+=========================================================== */
 export const getAttendances = async (req, res) => {
   try {
     const { classId, lecturerId, courseId, from, to } = req.query;
 
-    let query = {};
+    const classObjId = toObjectId(classId);
+    const lecturerObjId = toObjectId(lecturerId);
+    const courseObjId = toObjectId(courseId);
 
-    // 1) Giảng viên
-    if (lecturerId) query.lecturerId = lecturerId;
+    /* =======================
+       BASE MATCH (Attendance)
+    ======================= */
+    const match = {};
 
-    // 2) Nếu chọn classId → ưu tiên tuyệt đối
-    if (classId) {
-      query.classId = classId;
+    if (classObjId) {
+      match.classId = classObjId;
     }
 
-    // 3) Nếu không chọn classId mà chọn courseId → lọc theo môn
-    else if (courseId) {
-      const classList = await Class.find({ course: courseId }).select("_id");
-
-      query.classId = {
-        $in: classList.map(c => c._id.toString())
-      };
-    }
-
-    // 4) Lọc theo ngày
     if (from || to) {
-      query.date = {};
-      if (from) query.date.$gte = new Date(from);
-      if (to) query.date.$lte = new Date(to);
+      match.date = {};
+      if (from) match.date.$gte = new Date(`${from}T00:00:00.000Z`);
+      if (to) match.date.$lte = new Date(`${to}T23:59:59.999Z`);
     }
 
-    const list = await Attendance.find(query)
-      .populate({
-        path: "classId",
-        populate: [
-          { path: "course", select: "name code" },
-          { path: "lecturer", select: "name email" }
-        ]
-      })
-      .sort({ date: -1 });
+    /* =======================
+       PIPELINE
+    ======================= */
+    const pipeline = [{ $match: match }];
 
-    res.json(list);
+    /* ===== JOIN CLASS ===== */
+    pipeline.push(
+      {
+        $lookup: {
+          from: "classes",
+          localField: "classId",
+          foreignField: "_id",
+          as: "classInfo",
+        },
+      },
+      { $unwind: "$classInfo" }
+    );
 
+    /* ===== FILTER COURSE ===== */
+    if (!classObjId && courseObjId) {
+      pipeline.push({
+        $match: { "classInfo.course": courseObjId },
+      });
+    }
+
+    /* ===== FILTER LECTURER ===== */
+    if (lecturerObjId) {
+      pipeline.push({
+        $match: { "classInfo.lecturer": lecturerObjId },
+      });
+    }
+
+    /* ===== JOIN COURSE ===== */
+    pipeline.push(
+      {
+        $lookup: {
+          from: "courses",
+          localField: "classInfo.course",
+          foreignField: "_id",
+          as: "courseInfo",
+        },
+      },
+      { $unwind: { path: "$courseInfo", preserveNullAndEmptyArrays: true } }
+    );
+
+    /* ===== JOIN LECTURER ===== */
+    pipeline.push(
+      {
+        $lookup: {
+          from: "users",
+          localField: "classInfo.lecturer",
+          foreignField: "_id",
+          as: "lecturerInfo",
+        },
+      },
+      { $unwind: { path: "$lecturerInfo", preserveNullAndEmptyArrays: true } }
+    );
+
+    /* ===== STUDENT COUNTS ===== */
+    pipeline.push(
+      {
+        $addFields: {
+          rosterIds: { $ifNull: ["$classInfo.students", []] },
+          presentIds: {
+            $map: {
+              input: { $ifNull: ["$studentsPresent", []] },
+              as: "p",
+              in: "$$p.studentId",
+            },
+          },
+        },
+      },
+
+      {
+        $lookup: {
+          from: "users",
+          let: { ids: "$rosterIds" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
+            { $match: { role: "student", isActive: true } },
+            { $project: { _id: 1 } },
+          ],
+          as: "activeRoster",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "users",
+          let: { ids: "$presentIds" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
+            { $match: { role: "student", isActive: true } },
+            { $project: { _id: 1 } },
+          ],
+          as: "activePresent",
+        },
+      },
+
+      {
+        $addFields: {
+          presentCount: { $size: "$activePresent" },
+          totalCount: { $size: "$activeRoster" },
+          absentCount: {
+            $max: [
+              0,
+              { $subtract: [{ $size: "$activeRoster" }, { $size: "$activePresent" }] },
+            ],
+          },
+        },
+      }
+    );
+
+    /* ===== SLOT FALLBACK ===== */
+    pipeline.push({
+      $addFields: {
+        week: { $ifNull: ["$slot.week", "--"] },
+        lesson: { $ifNull: ["$slot.lesson", "--"] },
+        room: { $ifNull: ["$slot.room", "--"] },
+      },
+    });
+
+    /* ===== SORT ===== */
+    pipeline.push({ $sort: { date: -1 } });
+
+    /* ===== RESPONSE SHAPE ===== */
+    pipeline.push({
+      $project: {
+        _id: 1,
+        date: 1,
+        qrLink: 1,
+        week: 1,
+        lesson: 1,
+        room: 1,
+        presentCount: 1,
+        absentCount: 1,
+        classId: {
+          _id: "$classInfo._id",
+          name: "$classInfo.name",
+          code: "$classInfo.code",
+          course: {
+            _id: "$courseInfo._id",
+            name: "$courseInfo.name",
+            code: "$courseInfo.code",
+          },
+          lecturer: {
+            _id: "$lecturerInfo._id",
+            name: "$lecturerInfo.name",
+            email: "$lecturerInfo.email",
+          },
+        },
+      },
+    });
+
+    const list = await Attendance.aggregate(pipeline);
+    return res.json(list);
   } catch (err) {
     console.error("GET ATTENDANCES ERROR:", err);
-    res.status(500).json({ message: "Lỗi server" });
+    return res.status(500).json({ message: "Lỗi server" });
   }
 };
 
-
-// === RESET buổi điểm danh ===
+/* ===========================================================
+   RESET ATTENDANCE
+=========================================================== */
 export const resetAttendance = async (req, res) => {
   try {
     const { id } = req.params;
 
     const att = await Attendance.findById(id);
-    if (!att) return res.status(404).json({ message: "Không tìm thấy buổi điểm danh" });
+    if (!att) {
+      return res.status(404).json({ message: "Không tìm thấy buổi điểm danh" });
+    }
 
-    att.presentCount = 0;
-    att.absentCount = 0;
     att.studentsPresent = [];
     att.studentsAbsent = [];
     await att.save();
 
-    res.json({ message: "Đã reset buổi điểm danh" });
+    return res.json({ message: "Đã reset buổi điểm danh" });
   } catch (err) {
-    res.status(500).json({ message: "Lỗi server" });
+    console.error("RESET ATTENDANCE ERROR:", err);
+    return res.status(500).json({ message: "Lỗi server" });
   }
 };
 
-// === Xóa buổi điểm danh ===
+/* ===========================================================
+   DELETE ATTENDANCE
+=========================================================== */
 export const deleteAttendance = async (req, res) => {
   try {
     const { id } = req.params;
 
     const deleted = await Attendance.findByIdAndDelete(id);
-    if (!deleted)
+    if (!deleted) {
       return res.status(404).json({ message: "Không tìm thấy buổi điểm danh" });
+    }
 
-    res.json({ message: "Đã xóa buổi điểm danh" });
+    return res.json({ message: "Đã xóa buổi điểm danh" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("DELETE ATTENDANCE ERROR:", err);
+    return res.status(500).json({ message: "Lỗi server" });
   }
 };

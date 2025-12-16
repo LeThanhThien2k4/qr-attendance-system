@@ -6,7 +6,6 @@ import mongoose from "mongoose";
 import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
-import notificationRoutes from "./routes/notification.route.js";
 import enrollmentRoutes from "./routes/enrollments.route.js";
 import adminUserRoutes from "./routes/adminUsers.route.js";
 import adminCoursesRoute from "./routes/adminCourses.route.js";
@@ -19,6 +18,8 @@ import adminDashboardRoutes from "./routes/adminDashboard.route.js";
 import adminRoute from "./routes/admin.route.js";
 import lecturerDashboardRoutes from "./routes/lecturerDashboard.route.js";
 import studentDashboardRoutes from "./routes/studentDashboard.route.js";
+import lecturerAIRoutes from "./routes/lecturerAI.route.js";
+
 
 
 
@@ -28,20 +29,24 @@ app.use(cors());
 app.use(express.json());
 
 // Kết nối MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ Mongo Error:", err));
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(async () => {
+    console.log("✅ MongoDB Connected");
+
+  })
+  .catch((err) => console.error("❌ Mongo Error:", err));
+
 mongoose.connection.on("connected", () => {
   console.log("🔵 Connected to MongoDB:", mongoose.connection.name);
-  console.log("🔵 Collections:", mongoose.connection.collections);
 });
 
 // Định nghĩa API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/notifications", notificationRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/courses", adminCoursesRoute);
@@ -54,9 +59,7 @@ app.use("/api/student", studentAttendanceRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/admin", adminRoute);
 app.use("/api/student", studentDashboardRoutes);
-
-
-
+app.use("/api/ai", lecturerAIRoutes);
 // Middleware xử lý lỗi
 app.use(errorHandler);
 
